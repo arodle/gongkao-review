@@ -30,6 +30,7 @@ const STORAGE_KEY = 'civil-exam-app-state';
 function buildNodeStats(
   mindMap: KnowledgeNode,
   answerRecords: AnswerRecord[],
+  questionBank?: QuestionBankItem[],
 ): Record<string, { correctCount: number; wrongCount: number }> {
   const stats: Record<string, { correctCount: number; wrongCount: number }> = {};
 
@@ -64,13 +65,26 @@ function buildNodeStats(
       }
       continue;
     }
-    // Strategy 2: Fallback - match by questionId in angleQuestionMap
+    // Strategy 2: Match by questionId in angleQuestionMap (inline questions)
+    let matched = false;
     for (const [angleId, questionIds] of Object.entries(angleQuestionMap)) {
       if (questionIds.has(record.questionId) && stats[angleId]) {
         if (record.isCorrect) {
           stats[angleId].correctCount++;
         } else {
           stats[angleId].wrongCount++;
+        }
+        matched = true;
+      }
+    }
+    // Strategy 3: Match by questionId in questionBank (bank questions have linkedAngleId)
+    if (!matched && questionBank) {
+      const bankItem = questionBank.find((q: QuestionBankItem) => q.id === record.questionId);
+      if (bankItem?.linkedAngleId && stats[bankItem.linkedAngleId]) {
+        if (record.isCorrect) {
+          stats[bankItem.linkedAngleId].correctCount++;
+        } else {
+          stats[bankItem.linkedAngleId].wrongCount++;
         }
       }
     }
@@ -82,7 +96,7 @@ function buildNodeStats(
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'SET_MIND_MAP': {
-      const nodeStats = buildNodeStats(action.payload, state.answerRecords);
+      const nodeStats = buildNodeStats(action.payload, state.answerRecords, state.questionBank);
       return { ...state, mindMap: action.payload, nodeStats };
     }
     case 'ADD_PRACTICE_SET':
@@ -108,15 +122,21 @@ function reducer(state: AppState, action: Action): AppState {
       };
     case 'ADD_ANSWER_RECORD': {
       const newRecords = [...state.answerRecords, action.payload];
-      const nodeStats = buildNodeStats(state.mindMap, newRecords);
+      const nodeStats = buildNodeStats(state.mindMap, newRecords, state.questionBank);
       return { ...state, answerRecords: newRecords, nodeStats };
     }
     case 'ADD_EXAM_RESULT':
       return { ...state, examResults: [...state.examResults, action.payload] };
     case 'UPDATE_NODE_STATS':
       return { ...state, nodeStats: action.payload };
-    case 'LOAD_STATE':
-      return action.payload;
+    case 'LOAD_STATE': {
+      const loaded = action.payload as AppState;
+      // Rebuild nodeStats from scratch using current mindMap + answerRecords
+      // This fixes stale nodeStats from old localStorage data
+      // and handles records that may lack linkedAngleId
+      const nodeStats = buildNodeStats(loaded.mindMap, loaded.answerRecords || [], loaded.questionBank || []);
+      return { ...loaded, nodeStats };
+    }
     default:
       return state;
   }
@@ -169,7 +189,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (!parsed.questionBank) parsed.questionBank = SAMPLE_QUESTION_BANK;
         dispatch({ type: 'LOAD_STATE', payload: parsed });
       } else {
-        const nodeStats = buildNodeStats(SAMPLE_MIND_MAP, []);
+        const nodeStats = buildNodeStats(SAMPLE_MIND_MAP, [], SAMPLE_QUESTION_BANK);
         dispatch({ type: 'UPDATE_NODE_STATS', payload: nodeStats });
       }
     } catch {
