@@ -14,24 +14,31 @@ export const SAMPLE_MIND_MAP: KnowledgeNode = {
   id: 'root_1',
   name: '行测',
   type: 'subject',
+  content: '行政职业能力测验，简称行测，是公务员考试笔试公共科目之一，主要测查与公务员职业密切相关的、适合通过客观化纸笔测验方式进行考查的基本素质和能力要素。',
+  annotation: '行测一般为120分钟，130-135题，时间紧任务重',
   questions: [],
   children: [
     {
       id: 'k_1',
       name: '言语理解与表达',
       type: 'knowledge',
+      content: '主要测查运用语言文字进行思考和交流、迅速准确地理解和把握文字材料内涵的能力。',
       questions: [],
       children: [
         {
           id: 'sk_1',
           name: '片段阅读',
           type: 'subknowledge',
+          content: '给定一段文字，要求根据文字内容回答问题，常见题型包括主旨概括、意图判断、细节理解等。',
+          annotation: '做题技巧：先看问题，再读文段，找关键句',
           questions: [],
           children: [
             {
               id: 'a_1',
               name: '主旨概括题',
               type: 'angle',
+              content: '要求概括文段的主旨或中心思想。常见提问方式："这段文字主要说明/讲述/讨论的是""对这段文字概括最准确的是"。',
+              annotation: '关键：找主题句，注意转折词、总结词后的内容',
               questions: [
                 {
                   id: 'q_1',
@@ -64,6 +71,8 @@ export const SAMPLE_MIND_MAP: KnowledgeNode = {
               id: 'a_2',
               name: '意图判断题',
               type: 'angle',
+              content: '要求判断作者的意图或目的。常见提问方式："这段文字意在强调/说明/表明""作者通过这段文字最想传达的是"。',
+              annotation: '注意区分"意图"与"主旨"：意图更偏向言外之意',
               questions: [
                 {
                   id: 'q_3',
@@ -86,12 +95,14 @@ export const SAMPLE_MIND_MAP: KnowledgeNode = {
           id: 'sk_2',
           name: '逻辑填空',
           type: 'subknowledge',
+          content: '在文段中填入最恰当的词语，考查实词、成语、虚词的辨析能力。',
           questions: [],
           children: [
             {
               id: 'a_3',
               name: '实词辨析',
               type: 'angle',
+              content: '辨析近义实词的细微差别，包括词义轻重、范围大小、感情色彩、搭配习惯等维度。',
               questions: [
                 {
                   id: 'q_4',
@@ -112,6 +123,8 @@ export const SAMPLE_MIND_MAP: KnowledgeNode = {
               id: 'a_4',
               name: '成语辨析',
               type: 'angle',
+              content: '辨析常见成语的含义、适用对象、感情色彩、近义成语的区别。高频成语约200个。',
+              annotation: '常考成语：独树一帜、标新立异、别出心裁、另起炉灶、不落窠臼等',
               questions: [
                 {
                   id: 'q_5',
@@ -136,6 +149,7 @@ export const SAMPLE_MIND_MAP: KnowledgeNode = {
       id: 'k_2',
       name: '数量关系',
       type: 'knowledge',
+      content: '主要测查理解、把握事物间量化关系和解决数量关系问题的能力，包括数据关系的分析、推理、判断、运算等。',
       questions: [],
       children: [
         {
@@ -148,6 +162,9 @@ export const SAMPLE_MIND_MAP: KnowledgeNode = {
               id: 'a_5',
               name: '行程问题',
               type: 'angle',
+              content: '研究速度、时间和路程三者关系的问题。核心公式：路程=速度×时间。常见题型：相遇问题、追及问题、流水行船问题。',
+              annotation: '行程问题公式图解可帮助理解',
+              images: ['https://placehold.co/400x200/e8f4f8/333?text=行程问题+公式%3A+S%3DV×T'],
               questions: [
                 {
                   id: 'q_6',
@@ -168,6 +185,8 @@ export const SAMPLE_MIND_MAP: KnowledgeNode = {
               id: 'a_6',
               name: '工程问题',
               type: 'angle',
+              content: '研究工作效率、工作时间和工作量三者关系的问题。核心思路：设工作总量为1（或最小公倍数），用效率的倒数表示时间。',
+              images: ['https://placehold.co/400x200/fef3c7/333?text=工程问题+总量%3D效率×时间'],
               questions: [
                 {
                   id: 'q_7',
@@ -192,6 +211,7 @@ export const SAMPLE_MIND_MAP: KnowledgeNode = {
       id: 'k_3',
       name: '判断推理',
       type: 'knowledge',
+      content: '主要测查对各种事物关系的分析推理能力，包括图形推理、定义判断、类比推理、逻辑判断等。',
       questions: [],
       children: [
         {
@@ -268,6 +288,9 @@ export const SAMPLE_MIND_MAP: KnowledgeNode = {
               id: 'a_9',
               name: '同比/环比增长',
               type: 'angle',
+              content: '同比增长率=(本期数-上年同期数)/上年同期数×100%；环比增长率=(本期数-上期数)/上期数×100%。',
+              annotation: '注意区分同比（与去年同期比）和环比（与上一时期比）',
+              images: ['https://placehold.co/400x200/dcfce7/333?text=增长率公式%3A+%28本期-基期%29÷基期'],
               questions: [
                 {
                   id: 'q_10',

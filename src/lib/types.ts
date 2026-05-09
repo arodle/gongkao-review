@@ -6,6 +6,12 @@ export interface KnowledgeNode {
   type: NodeType;
   children: KnowledgeNode[];
   questions: Question[];
+  /** 知识点内容描述 */
+  content?: string;
+  /** 注释/备注 */
+  annotation?: string;
+  /** 图片URL列表 */
+  images?: string[];
 }
 
 export interface Question {

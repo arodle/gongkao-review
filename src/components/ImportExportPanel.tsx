@@ -1,24 +1,25 @@
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import type { KnowledgeNode, PracticeSet, PracticeQuestion, NodeType } from '@/lib/types';
 import { useAppState } from '@/lib/store';
 import { createId, SAMPLE_MIND_MAP } from '@/lib/sample-data';
 import { Upload, Download, FileText, Save, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
 
 // --- Mind Map Text Format Parser ---
+// Supports: name, {content:...}, {@annotation}, {[img]url}
 function parseMindMapText(text: string): KnowledgeNode {
-  const lines = text.split('\n').filter((l) => l.trim());
+  const lines = text.split('\n');
   let stack: Array<{ node: KnowledgeNode; indent: number }> = [];
   let root: KnowledgeNode | null = null;
 
@@ -31,21 +32,50 @@ function parseMindMapText(text: string): KnowledgeNode {
     }
   }
 
+  function parseNodeMeta(content: string): {
+    name: string;
+    contentDesc?: string;
+    annotation?: string;
+    images?: string[];
+  } {
+    let name = content;
+    let contentDesc: string | undefined;
+    let annotation: string | undefined;
+    const images: string[] = [];
+
+    // Extract {content:...}
+    const contentMatch = name.match(/\{content:(.+?)\}/);
+    if (contentMatch) {
+      contentDesc = contentMatch[1];
+      name = name.replace(contentMatch[0], '').trim();
+    }
+
+    // Extract {@annotation}
+    const annotationMatch = name.match(/\{@(.+?)\}/);
+    if (annotationMatch) {
+      annotation = annotationMatch[1];
+      name = name.replace(annotationMatch[0], '').trim();
+    }
+
+    // Extract {[img]url} (can be multiple)
+    const imgRegex = /\{\[img\](.+?)\}/g;
+    let imgMatch: RegExpExecArray | null;
+    while ((imgMatch = imgRegex.exec(name)) !== null) {
+      images.push(imgMatch[1]);
+    }
+    name = name.replace(/\{\[img\].+?\}/g, '').trim();
+
+    return { name, contentDesc, annotation, images: images.length > 0 ? images : undefined };
+  }
+
   for (const line of lines) {
     const indent = line.search(/\S/);
-    const content = line.trim();
-    if (!content) continue;
+    if (indent === -1) continue; // Skip empty lines
+    const rawContent = line.trim();
+    if (!rawContent) continue;
 
     // Check if it's a question line: [Q]content|A:opt|B:opt|Ans:X|Exp:...
-    const questionMatch = content.match(/^\[Q\](.+?)\|(.+)$/);
-
-    const node: KnowledgeNode = {
-      id: createId('node'),
-      name: questionMatch ? '' : content,
-      type: getNodeType(Math.floor(indent / 2)),
-      children: [],
-      questions: [],
-    };
+    const questionMatch = rawContent.match(/^\[Q\](.+?)\|(.+)$/);
 
     if (questionMatch) {
       const parts = questionMatch[2].split('|');
@@ -81,6 +111,20 @@ function parseMindMapText(text: string): KnowledgeNode {
       continue;
     }
 
+    // Parse node meta (content, annotation, images)
+    const meta = parseNodeMeta(rawContent);
+
+    const node: KnowledgeNode = {
+      id: createId('node'),
+      name: meta.name,
+      type: getNodeType(Math.floor(indent / 2)),
+      children: [],
+      questions: [],
+      content: meta.contentDesc,
+      annotation: meta.annotation,
+      images: meta.images,
+    };
+
     if (!root) {
       root = node;
       stack = [{ node, indent }];
@@ -100,7 +144,22 @@ function parseMindMapText(text: string): KnowledgeNode {
 
 function serializeMindMapText(node: KnowledgeNode, indent = 0): string {
   const prefix = '  '.repeat(indent);
-  let result = `${prefix}${node.name}\n`;
+  let line = prefix + node.name;
+
+  // Append content, annotation, images on same line
+  if (node.content) {
+    line += ` {content:${node.content}}`;
+  }
+  if (node.annotation) {
+    line += ` {@${node.annotation}}`;
+  }
+  if (node.images && node.images.length > 0) {
+    for (const imgUrl of node.images) {
+      line += ` {[img]${imgUrl}}`;
+    }
+  }
+
+  let result = line + '\n';
 
   for (const q of node.questions) {
     const optStr = q.options.map((o) => `${o.label}:${o.text}`).join('|');
@@ -114,23 +173,120 @@ function serializeMindMapText(node: KnowledgeNode, indent = 0): string {
   return result;
 }
 
+// --- Auto-Indent Textarea ---
+function AutoIndentTextarea({
+  value,
+  onChange,
+  rows,
+  className,
+  placeholder,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  rows: number;
+  className?: string;
+  placeholder?: string;
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      // Enter: maintain current indentation
+      if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const beforeCursor = value.substring(0, start);
+
+        // Find the indentation of the current line
+        const lastNewline = beforeCursor.lastIndexOf('\n');
+        const currentLine = beforeCursor.substring(lastNewline + 1);
+        const indentMatch = currentLine.match(/^(\s*)/);
+        const currentIndent = indentMatch ? indentMatch[1] : '';
+
+        // If the current line has content (is a node), add one extra indent level for children
+        const lineContent = currentLine.trim();
+        let newIndent = currentIndent;
+        if (lineContent && !lineContent.startsWith('[Q]')) {
+          newIndent = currentIndent + '  '; // Add 2 spaces for child level
+        }
+
+        const newValue = value.substring(0, start) + '\n' + newIndent + value.substring(end);
+        onChange(newValue);
+
+        // Restore cursor position after React re-renders
+        requestAnimationFrame(() => {
+          const newCursorPos = start + 1 + newIndent.length;
+          textarea.setSelectionRange(newCursorPos, newCursorPos);
+        });
+      }
+
+      // Tab: indent 2 spaces
+      if (e.key === 'Tab' && !e.shiftKey) {
+        e.preventDefault();
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const newValue = value.substring(0, start) + '  ' + value.substring(end);
+        onChange(newValue);
+        requestAnimationFrame(() => {
+          textarea.setSelectionRange(start + 2, start + 2);
+        });
+      }
+
+      // Shift+Tab: remove 2 spaces of indentation
+      if (e.key === 'Tab' && e.shiftKey) {
+        e.preventDefault();
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const beforeCursor = value.substring(0, start);
+        const lastNewline = beforeCursor.lastIndexOf('\n');
+        const lineStart = lastNewline + 1;
+        const lineContent = value.substring(lineStart);
+        if (lineContent.startsWith('  ')) {
+          const newValue = value.substring(0, lineStart) + lineContent.substring(2);
+          onChange(newValue);
+          const newCursorPos = Math.max(lineStart, start - 2);
+          requestAnimationFrame(() => {
+            textarea.setSelectionRange(newCursorPos, newCursorPos);
+          });
+        }
+      }
+    },
+    [value, onChange],
+  );
+
+  return (
+    <textarea
+      ref={textareaRef}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      rows={rows}
+      className={className}
+      placeholder={placeholder}
+      onKeyDown={handleKeyDown}
+    />
+  );
+}
+
 // --- Practice Set Text Parser ---
 function parsePracticeSetText(text: string, mindMap: KnowledgeNode): PracticeSet {
   const questions: PracticeQuestion[] = [];
   const blocks = text.split(/\n(?=\d+[.、)])/).filter((b) => b.trim());
 
-  function autoMatchAngle(questionText: string): { id: string; name: string } {
-    // Try to match keywords from the question to knowledge angles
-    const allAngles: Array<{ id: string; name: string }> = [];
-    function collectAngles(n: KnowledgeNode): void {
-      if (n.type === 'angle') {
-        allAngles.push({ id: n.id, name: n.name });
-      }
-      n.children.forEach(collectAngles);
+  const allAnglesMemo: Array<{ id: string; name: string }> = [];
+  function collectAngles(node: KnowledgeNode): void {
+    if (node.type === 'angle') {
+      allAnglesMemo.push({ id: node.id, name: node.name });
     }
-    collectAngles(mindMap);
+    node.children.forEach(collectAngles);
+  }
+  collectAngles(mindMap);
 
-    for (const angle of allAngles) {
+  function autoMatchAngle(questionText: string): { id: string; name: string } {
+    for (const angle of allAnglesMemo) {
       if (questionText.includes(angle.name) || angle.name.split('').some((ch) => questionText.includes(ch) && ch.length > 1)) {
         return angle;
       }
@@ -152,7 +308,7 @@ function parsePracticeSetText(text: string, mindMap: KnowledgeNode): PracticeSet
 
     for (const [keyword, angleName] of Object.entries(keywordMap)) {
       if (questionText.includes(keyword)) {
-        const found = allAngles.find((a) => a.name === angleName);
+        const found = allAnglesMemo.find((a) => a.name === angleName);
         if (found) return found;
       }
     }
@@ -164,7 +320,6 @@ function parsePracticeSetText(text: string, mindMap: KnowledgeNode): PracticeSet
     const lines = block.trim().split('\n').filter((l) => l.trim());
     if (lines.length < 2) continue;
 
-    // Parse question content
     const contentLine = lines[0].replace(/^\d+[.、)]\s*/, '');
     const options: Array<{ label: string; text: string }> = [];
     let correctAnswer = '';
@@ -360,18 +515,23 @@ export function ImportExportPanel() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>导入思维导图</DialogTitle>
+            <DialogDescription className="sr-only">通过文本格式导入思维导图数据</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              格式：缩进表示层级，每级2个空格。题目行以 [Q] 开头，格式：
-              [Q]题目|A:选项|B:选项|Ans:答案|Exp:解析
-            </p>
-            <Textarea
+            <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+              <p>格式说明：缩进表示层级（每级2空格），支持以下扩展语法：</p>
+              <p>• <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">节点名称</code> — 普通知识点</p>
+              <p>• <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">节点名称 {'{content:描述内容}'}</code> — 添加知识点内容</p>
+              <p>• <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">节点名称 {'{@注释备注}'}</code> — 添加注释</p>
+              <p>• <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">节点名称 {'{[img]图片URL}'}</code> — 添加图片</p>
+              <p>• <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">[Q]题目|A:选项|B:选项|Ans:答案|Exp:解析</code> — 添加真题</p>
+            </div>
+            <AutoIndentTextarea
               value={mindMapText}
-              onChange={(e) => setMindMapText(e.target.value)}
+              onChange={setMindMapText}
               rows={15}
-              className="font-mono text-xs"
-              placeholder="行测&#10;  言语理解与表达&#10;    片段阅读&#10;      主旨概括题&#10;        [Q]题目内容|A:选项A|B:选项B|Ans:A|Exp:解析"
+              className="w-full border rounded-md px-3 py-2 font-mono text-xs resize-y dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200"
+              placeholder={"行测 {content:行政职业能力测验} {@120分钟130-135题}\n  言语理解与表达 {content:考查语言文字运用能力}\n    片段阅读\n      主旨概括题\n        [Q]题目内容|A:选项A|B:选项B|Ans:A|Exp:解析"}
             />
             <Button onClick={handleImportMindMap}>确认导入</Button>
           </div>
@@ -389,17 +549,19 @@ export function ImportExportPanel() {
         <DialogContent className="max-w-3xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle>编辑思维导图</DialogTitle>
+            <DialogDescription className="sr-only">以文本方式编辑思维导图内容</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              直接编辑文本内容，修改后点击保存即可更新思维导图。
-            </p>
+            <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+              <p>直接编辑文本修改思维导图。支持自动缩进：Enter 维持当前缩进级别，Tab 增加2空格，Shift+Tab 减少缩进。</p>
+              <p>扩展语法：<code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{content:内容}'}</code> 知识点内容、<code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{@注释}'}</code> 注释、<code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{[img]URL}'}</code> 图片</p>
+            </div>
             <ScrollArea className="h-[50vh]">
-              <Textarea
+              <AutoIndentTextarea
                 value={mindMapText}
-                onChange={(e) => setMindMapText(e.target.value)}
-                rows={25}
-                className="font-mono text-xs"
+                onChange={setMindMapText}
+                rows={30}
+                className="w-full border rounded-md px-3 py-2 font-mono text-xs resize-y dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200"
               />
             </ScrollArea>
             <div className="flex gap-2">
@@ -426,16 +588,17 @@ export function ImportExportPanel() {
         <DialogContent className="max-w-2xl max-h-[80vh]">
           <DialogHeader>
             <DialogTitle>上传套题与答案</DialogTitle>
+            <DialogDescription className="sr-only">上传套题与答案信息，系统自动匹配考点</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              格式：题目编号开头，每行一个选项，答案行以"答案"开头，解析行以"解析"开头。系统将自动匹配知识点考点。
+              格式：题目编号开头，每行一个选项，答案行以&quot;答案&quot;开头，解析行以&quot;解析&quot;开头。系统将自动匹配知识点考点。
             </p>
-            <Textarea
+            <AutoIndentTextarea
               value={practiceText}
-              onChange={(e) => setPracticeText(e.target.value)}
+              onChange={setPracticeText}
               rows={15}
-              className="font-mono text-xs"
+              className="w-full border rounded-md px-3 py-2 font-mono text-xs resize-y dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200"
               placeholder={"1. 题目内容\nA. 选项A\nB. 选项B\nC. 选项C\nD. 选项D\n答案：A\n解析：解析内容\n\n2. 另一道题..."}
             />
             <Button onClick={handleImportPractice}>确认导入</Button>

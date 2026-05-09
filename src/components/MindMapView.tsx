@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useMemo } from 'react';
-import type { KnowledgeNode, NodeType } from '@/lib/types';
+import type { KnowledgeNode, NodeType, Question } from '@/lib/types';
 import { useAppState } from '@/lib/store';
 import { getWrongColor, getWrongTextColor } from '@/lib/color-utils';
 import { cn } from '@/lib/utils';
@@ -13,6 +13,12 @@ import {
   Target,
   Lightbulb,
   CheckCircle2,
+  XCircle,
+  MessageSquare,
+  ImageIcon,
+  FileText,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -48,6 +54,183 @@ const NODE_TYPE_CONFIG: Record<
   },
 };
 
+// --- Interactive Question Card ---
+function InteractiveQuestionCard({
+  question,
+  angleNodeId,
+}: {
+  question: Question;
+  angleNodeId: string;
+}) {
+  const { addAnswerRecord, state } = useAppState();
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [showResult, setShowResult] = useState(false);
+  const [showExplanation, setShowExplanation] = useState(false);
+
+  // Check if this question was already answered correctly in records
+  const alreadyAnsweredCorrectly = useMemo(
+    () =>
+      state.answerRecords.some(
+        (r) => r.questionId === question.id && r.isCorrect,
+      ),
+    [state.answerRecords, question.id],
+  );
+
+  // Check if this question was answered (any)
+  const previousAnswer = useMemo(() => {
+    const record = state.answerRecords.find((r) => r.questionId === question.id);
+    return record ? record.selectedAnswer : null;
+  }, [state.answerRecords, question.id]);
+
+  const isCorrect = selectedOption === question.correctAnswer;
+
+  const handleSelectOption = useCallback(
+    (label: string) => {
+      if (showResult) return; // Already answered
+      setSelectedOption(label);
+      setShowResult(true);
+
+      const correct = label === question.correctAnswer;
+      addAnswerRecord({
+        questionId: question.id,
+        practiceSetId: 'mindmap-inline',
+        selectedAnswer: label,
+        isCorrect: correct,
+        timestamp: Date.now(),
+      });
+    },
+    [showResult, question, addAnswerRecord],
+  );
+
+  // If already answered correctly before, show completed state
+  if (alreadyAnsweredCorrectly && !showResult) {
+    return (
+      <div className="bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 p-3 text-left shadow-sm">
+        <div className="flex items-center gap-2 mb-1">
+          <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+          <span className="text-[11px] font-medium text-green-700 dark:text-green-400">已完成</span>
+        </div>
+        <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">
+          {question.content}
+        </p>
+        <div className="mt-2 grid grid-cols-2 gap-1">
+          {question.options.map((opt) => (
+            <div
+              key={opt.label}
+              className={cn(
+                'text-[11px] px-2 py-1 rounded',
+                opt.label === question.correctAnswer
+                  ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 font-medium'
+                  : 'bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400',
+              )}
+            >
+              {opt.label}. {opt.text}
+            </div>
+          ))}
+        </div>
+        {question.explanation && (
+          <button
+            type="button"
+            className="mt-2 text-[11px] text-blue-500 hover:text-blue-700 dark:text-blue-400"
+            onClick={() => setShowExplanation(!showExplanation)}
+          >
+            {showExplanation ? '收起解析' : '查看解析'}
+          </button>
+        )}
+        {showExplanation && (
+          <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
+            {question.explanation}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        'rounded-lg border p-3 text-left shadow-sm transition-colors',
+        showResult
+          ? isCorrect
+            ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+            : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+          : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700',
+      )}
+    >
+      <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">
+        {question.content}
+      </p>
+      <div className="mt-2 grid grid-cols-2 gap-1">
+        {question.options.map((opt) => {
+          let optClass = 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-700 dark:hover:text-blue-400';
+
+          if (showResult) {
+            if (opt.label === question.correctAnswer) {
+              optClass = 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 font-medium';
+            } else if (opt.label === selectedOption && !isCorrect) {
+              optClass = 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 font-medium line-through';
+            } else {
+              optClass = 'bg-gray-50 dark:bg-gray-700 text-gray-400 dark:text-gray-500';
+            }
+          } else if (selectedOption === opt.label) {
+            optClass = 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 font-medium';
+          }
+
+          return (
+            <button
+              key={opt.label}
+              type="button"
+              className={cn('text-[11px] px-2 py-1 rounded text-left transition-colors', optClass)}
+              onClick={() => handleSelectOption(opt.label)}
+              disabled={showResult}
+            >
+              {opt.label}. {opt.text}
+            </button>
+          );
+        })}
+      </div>
+
+      {showResult && (
+        <div className="mt-2 flex items-center gap-2">
+          {isCorrect ? (
+            <span className="flex items-center gap-1 text-[11px] text-green-600 dark:text-green-400 font-medium">
+              <CheckCircle2 className="h-3.5 w-3.5" /> 回答正确！
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-[11px] text-red-600 dark:text-red-400 font-medium">
+              <XCircle className="h-3.5 w-3.5" /> 回答错误，正确答案：{question.correctAnswer}
+            </span>
+          )}
+        </div>
+      )}
+
+      {showResult && question.explanation && (
+        <>
+          <button
+            type="button"
+            className="mt-1 text-[11px] text-blue-500 hover:text-blue-700 dark:text-blue-400"
+            onClick={() => setShowExplanation(!showExplanation)}
+          >
+            {showExplanation ? '收起解析' : '查看解析'}
+          </button>
+          {showExplanation && (
+            <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
+              {question.explanation}
+            </p>
+          )}
+        </>
+      )}
+
+      {previousAnswer && !showResult && (
+        <div className="mt-1 text-[10px] text-gray-400 dark:text-gray-500">
+          上次选择：{previousAnswer}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Tree Node Component ---
 interface TreeNodeProps {
   node: KnowledgeNode;
   expandedNodes: Set<string>;
@@ -66,15 +249,17 @@ function TreeNodeComponent({
   depth,
 }: TreeNodeProps) {
   const { getNodeStats, isPathLitUp } = useAppState();
+  const [showDetails, setShowDetails] = useState(false);
   const hasChildren = node.children.length > 0;
   const hasQuestions = node.questions.length > 0;
+  const hasContent = !!(node.content || node.annotation || (node.images && node.images.length > 0));
   const isExpanded = expandedNodes.has(node.id);
   const stats = getNodeStats(node.id);
   const config = NODE_TYPE_CONFIG[node.type];
   const IconComponent = config.icon;
 
   const isOnHighlightedPath = highlightedPath ? highlightedPath.has(node.id) : false;
-  const isLitUp = isPathLitUp(node);
+  const litUp = isPathLitUp(node);
   const wrongColor = getWrongColor(stats.wrongCount);
   const wrongTextColor = getWrongTextColor(stats.wrongCount);
 
@@ -87,7 +272,7 @@ function TreeNodeComponent({
     nodeBg = '';
     nodeBorder = '';
     nodeTextColor = wrongTextColor;
-  } else if (isLitUp && !wrongColor) {
+  } else if (litUp && !wrongColor) {
     nodeBg = 'bg-yellow-100 dark:bg-yellow-900';
     nodeBorder = 'border-yellow-400 dark:border-yellow-600';
   }
@@ -103,7 +288,7 @@ function TreeNodeComponent({
       {/* Node rectangle */}
       <div
         className={cn(
-          'relative flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 min-w-[110px] max-w-[220px] text-center cursor-pointer transition-all duration-300 hover:shadow-lg select-none',
+          'relative flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 min-w-[110px] max-w-[280px] text-center cursor-pointer transition-all duration-300 hover:shadow-lg select-none',
           nodeBg,
           nodeBorder,
         )}
@@ -130,6 +315,24 @@ function TreeNodeComponent({
             )}
           </span>
         )}
+        {/* Detail toggle button */}
+        {hasContent && (
+          <button
+            type="button"
+            className="shrink-0 ml-0.5 hover:opacity-100 opacity-60 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowDetails(!showDetails);
+            }}
+            title="查看详情"
+          >
+            {showDetails ? (
+              <EyeOff className="h-3.5 w-3.5" />
+            ) : (
+              <Eye className="h-3.5 w-3.5" />
+            )}
+          </button>
+        )}
         {stats.wrongCount > 0 && node.type === 'angle' && (
           <Badge
             variant="destructive"
@@ -138,10 +341,54 @@ function TreeNodeComponent({
             {stats.wrongCount}错
           </Badge>
         )}
-        {stats.correctCount > 0 && isLitUp && !(wrongColor && node.type === 'angle') && (
+        {stats.correctCount > 0 && litUp && !(wrongColor && node.type === 'angle') && (
           <CheckCircle2 className="absolute -top-2 -right-2 h-5 w-5 text-green-500 bg-white dark:bg-gray-900 rounded-full" />
         )}
       </div>
+
+      {/* Detail panel: content, annotation, images */}
+      {showDetails && hasContent && (
+        <>
+          <div className="w-px h-2 bg-gray-300 dark:bg-gray-600" />
+          <div className="w-full max-w-[360px] bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 text-left shadow-sm space-y-2">
+            {/* Content */}
+            {node.content && (
+              <div className="flex gap-2">
+                <FileText className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
+                  {node.content}
+                </p>
+              </div>
+            )}
+            {/* Annotation */}
+            {node.annotation && (
+              <div className="flex gap-2">
+                <MessageSquare className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed italic">
+                  {node.annotation}
+                </p>
+              </div>
+            )}
+            {/* Images */}
+            {node.images && node.images.length > 0 && (
+              <div className="space-y-2">
+                {node.images.map((imgUrl, idx) => (
+                  <div key={idx} className="relative rounded-md overflow-hidden border border-gray-200 dark:border-gray-600">
+                    <ImageIcon className="absolute top-1 right-1 h-3 w-3 text-gray-400" />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={imgUrl}
+                      alt={`${node.name} - 图${idx + 1}`}
+                      className="w-full h-auto max-h-[200px] object-contain bg-gray-50 dark:bg-gray-700"
+                      loading="lazy"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       {/* Expanded content: children tree */}
       {hasChildren && isExpanded && (
@@ -183,59 +430,20 @@ function TreeNodeComponent({
         </>
       )}
 
-      {/* Expanded content: questions */}
+      {/* Expanded content: interactive questions */}
       {hasQuestions && isExpanded && showQuestions && (
         <>
           <div className="w-px h-3 bg-gray-300 dark:bg-gray-600" />
           <div className="w-full max-w-[360px] space-y-2">
             {node.questions.map((q) => (
-              <QuestionMiniCard key={q.id} question={q} />
+              <InteractiveQuestionCard
+                key={q.id}
+                question={q}
+                angleNodeId={node.id}
+              />
             ))}
           </div>
         </>
-      )}
-    </div>
-  );
-}
-
-function QuestionMiniCard({
-  question,
-}: {
-  question: KnowledgeNode['questions'][0];
-}) {
-  const [showAnswer, setShowAnswer] = useState(false);
-
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 text-left shadow-sm">
-      <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">
-        {question.content}
-      </p>
-      <div className="mt-2 grid grid-cols-2 gap-1">
-        {question.options.map((opt) => (
-          <div
-            key={opt.label}
-            className={cn(
-              'text-[11px] px-2 py-1 rounded',
-              opt.label === question.correctAnswer
-                ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium'
-                : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400',
-            )}
-          >
-            {opt.label}. {opt.text}
-          </div>
-        ))}
-      </div>
-      <button
-        type="button"
-        className="mt-2 text-[11px] text-blue-500 hover:text-blue-700 dark:text-blue-400"
-        onClick={() => setShowAnswer(!showAnswer)}
-      >
-        {showAnswer ? '收起解析' : '查看解析'}
-      </button>
-      {showAnswer && (
-        <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
-          {question.explanation}
-        </p>
       )}
     </div>
   );
