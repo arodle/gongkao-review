@@ -102,6 +102,8 @@ function InteractiveQuestionCard({
         selectedAnswer: label,
         isCorrect: correct,
         timestamp: Date.now(),
+        linkedAngleId: angleNodeId,
+        source: 'mindmap',
       });
     },
     [showResult, question, addAnswerRecord],

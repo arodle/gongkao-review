@@ -643,6 +643,8 @@ export default function PracticeView() {
         selectedAnswer: answer,
         isCorrect,
         timestamp: Date.now(),
+        linkedAngleId: q.linkedAngleId,
+        source: 'practice',
       });
       setShowResults((prev) => ({ ...prev, [q.id]: true }));
     },

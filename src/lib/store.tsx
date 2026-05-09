@@ -41,6 +41,7 @@ function buildNodeStats(
   }
   traverse(mindMap);
 
+  // Map 1: angleId -> Set of inline question IDs (from mind map node.questions)
   const angleQuestionMap: Record<string, Set<string>> = {};
   function mapQuestions(node: KnowledgeNode): void {
     if (!angleQuestionMap[node.id]) angleQuestionMap[node.id] = new Set();
@@ -54,6 +55,16 @@ function buildNodeStats(
   mapQuestions(mindMap);
 
   for (const record of answerRecords) {
+    // Strategy 1: If record has linkedAngleId, use it directly
+    if (record.linkedAngleId && stats[record.linkedAngleId]) {
+      if (record.isCorrect) {
+        stats[record.linkedAngleId].correctCount++;
+      } else {
+        stats[record.linkedAngleId].wrongCount++;
+      }
+      continue;
+    }
+    // Strategy 2: Fallback - match by questionId in angleQuestionMap
     for (const [angleId, questionIds] of Object.entries(angleQuestionMap)) {
       if (questionIds.has(record.questionId) && stats[angleId]) {
         if (record.isCorrect) {

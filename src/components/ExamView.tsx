@@ -283,6 +283,8 @@ export default function ExamView() {
         selectedAnswer: userAnswer || '',
         isCorrect,
         timestamp: now,
+        linkedAngleId: q.linkedAngleId,
+        source: 'exam',
       });
     }
 

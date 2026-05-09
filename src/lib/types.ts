@@ -69,6 +69,10 @@ export interface AnswerRecord {
   selectedAnswer: string;
   isCorrect: boolean;
   timestamp: number;
+  /** 关联的出题角度ID，用于思维导图错题累积标记 */
+  linkedAngleId?: string;
+  /** 来源：mindmap / practice / exam */
+  source?: string;
 }
 
 export interface ExamResult {
