@@ -1,10 +1,11 @@
 import type { NextConfig } from 'next';
 
+const isStatic = process.env.BUILD_MODE === 'static';
+
 const nextConfig: NextConfig = {
-  // outputFileTracingRoot: path.resolve(__dirname, '../../'),  // Uncomment and add 'import path from "path"' if needed
-  /* config options here */
   allowedDevOrigins: ['*.dev.coze.site'],
   images: {
+    unoptimized: isStatic,
     remotePatterns: [
       {
         protocol: 'https',
@@ -13,6 +14,11 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  ...(isStatic && {
+    output: 'export',
+    basePath: '/gongkao-review',
+    trailingSlash: true,
+  }),
 };
 
 export default nextConfig;
