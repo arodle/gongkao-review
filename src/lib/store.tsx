@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useCallback, useState, useRef } from 'react';
 import type { KnowledgeNode, PracticeSet, AnswerRecord, ExamResult, QuestionBankItem } from './types';
 import { SAMPLE_MIND_MAP, SAMPLE_PRACTICE_SETS, SAMPLE_QUESTION_BANK } from './sample-data';
 
@@ -41,7 +41,6 @@ function buildNodeStats(
   }
   traverse(mindMap);
 
-  // Build a map from angleId to questionIds (from mind map)
   const angleQuestionMap: Record<string, Set<string>> = {};
   function mapQuestions(node: KnowledgeNode): void {
     if (!angleQuestionMap[node.id]) angleQuestionMap[node.id] = new Set();
@@ -54,7 +53,6 @@ function buildNodeStats(
   }
   mapQuestions(mindMap);
 
-  // Count correct/wrong per angle node based on answer records
   for (const record of answerRecords) {
     for (const [angleId, questionIds] of Object.entries(angleQuestionMap)) {
       if (questionIds.has(record.questionId) && stats[angleId]) {
@@ -64,12 +62,6 @@ function buildNodeStats(
           stats[angleId].wrongCount++;
         }
       }
-    }
-    // Also track by linkedAngleId for practice set questions
-    // Find the linked angle from practice sets
-    if (record.practiceSetId !== 'mindmap-inline') {
-      // The answer record questionId may match a practice question with linkedAngleId
-      // We'll handle this through the practiceSet questions lookup
     }
   }
 
@@ -143,12 +135,19 @@ interface AppContextValue {
   getNodeStats: (nodeId: string) => { correctCount: number; wrongCount: number };
   isPathLitUp: (node: KnowledgeNode) => boolean;
   addAnswerRecord: (record: AnswerRecord) => void;
+  syncToCloud: () => Promise<void>;
+  syncFromCloud: () => Promise<void>;
+  cloudSyncStatus: 'idle' | 'syncing' | 'success' | 'error';
+  lastSyncTime: string | null;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
+  const isInitialized = useRef(false);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -156,7 +155,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as AppState;
-        // Ensure questionBank exists for backwards compat
         if (!parsed.questionBank) parsed.questionBank = SAMPLE_QUESTION_BANK;
         dispatch({ type: 'LOAD_STATE', payload: parsed });
       } else {
@@ -166,16 +164,65 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Ignore parse errors
     }
+    isInitialized.current = true;
   }, []);
 
   // Save to localStorage on state change
   useEffect(() => {
+    if (!isInitialized.current) return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {
       // Ignore quota errors
     }
   }, [state]);
+
+  // Cloud sync: push local data to Supabase
+  const syncToCloud = useCallback(async () => {
+    setCloudSyncStatus('syncing');
+    try {
+      const res = await fetch('/api/sync', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mindMap: state.mindMap,
+          questionBank: state.questionBank,
+          answerRecords: state.answerRecords,
+          practiceSets: state.practiceSets,
+          examResults: state.examResults,
+        }),
+      });
+      if (!res.ok) throw new Error('Sync failed');
+      const now = new Date().toISOString();
+      setLastSyncTime(now);
+      setCloudSyncStatus('success');
+      // Reset status after 3s
+      setTimeout(() => setCloudSyncStatus('idle'), 3000);
+    } catch {
+      setCloudSyncStatus('error');
+      setTimeout(() => setCloudSyncStatus('idle'), 3000);
+    }
+  }, [state]);
+
+  // Cloud sync: pull data from Supabase
+  const syncFromCloud = useCallback(async () => {
+    setCloudSyncStatus('syncing');
+    try {
+      const res = await fetch('/api/sync');
+      if (!res.ok) throw new Error('Fetch failed');
+      const data = await res.json();
+      if (data && data.mindMap) {
+        dispatch({ type: 'LOAD_STATE', payload: data as AppState });
+        const now = new Date().toISOString();
+        setLastSyncTime(now);
+      }
+      setCloudSyncStatus('success');
+      setTimeout(() => setCloudSyncStatus('idle'), 3000);
+    } catch {
+      setCloudSyncStatus('error');
+      setTimeout(() => setCloudSyncStatus('idle'), 3000);
+    }
+  }, []);
 
   const getNodeStats = useCallback(
     (nodeId: string) => {
@@ -197,7 +244,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <AppContext.Provider value={{ state, dispatch, getNodeStats, isPathLitUp, addAnswerRecord }}>
+    <AppContext.Provider value={{
+      state, dispatch, getNodeStats, isPathLitUp, addAnswerRecord,
+      syncToCloud, syncFromCloud, cloudSyncStatus, lastSyncTime,
+    }}>
       {children}
     </AppContext.Provider>
   );

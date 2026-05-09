@@ -14,10 +14,14 @@ import {
   BookOpen,
   FileCheck,
   Database,
-  Settings,
   Link2,
   Menu,
   X,
+  Cloud,
+  CloudOff,
+  Loader2,
+  Download,
+  Upload,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,7 +29,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 function AppContent() {
-  const { state, dispatch } = useAppState();
+  const { state, dispatch, syncToCloud, syncFromCloud, cloudSyncStatus, lastSyncTime } = useAppState();
   const [activeTab, setActiveTab] = useState<AppTab>('mindmap');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarPanel, setSidebarPanel] = useState<'data' | 'match'>('data');
@@ -111,6 +115,44 @@ function AppContent() {
           <Badge variant="outline" className="text-[10px] hidden md:flex">
             {totalAngles} 考点 · {state.questionBank?.length ?? 0} 题库
           </Badge>
+          {/* Cloud sync buttons */}
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={syncToCloud}
+              disabled={cloudSyncStatus === 'syncing'}
+              title="上传到云端"
+            >
+              {cloudSyncStatus === 'syncing' ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : cloudSyncStatus === 'success' ? (
+                <Cloud className="h-3.5 w-3.5 text-green-500" />
+              ) : cloudSyncStatus === 'error' ? (
+                <CloudOff className="h-3.5 w-3.5 text-red-500" />
+              ) : (
+                <Upload className="h-3.5 w-3.5" />
+              )}
+              <span className="hidden sm:inline ml-1">上传云端</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={syncFromCloud}
+              disabled={cloudSyncStatus === 'syncing'}
+              title="从云端下载"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline ml-1">云端恢复</span>
+            </Button>
+            {lastSyncTime && (
+              <span className="text-[10px] text-gray-400 hidden lg:inline">
+                {new Date(lastSyncTime).toLocaleString('zh-CN', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}
+              </span>
+            )}
+          </div>
           <Button
             variant="ghost"
             size="sm"
@@ -151,7 +193,7 @@ function AppContent() {
               )}
               onClick={() => setSidebarPanel('data')}
             >
-              <Settings className="h-3.5 w-3.5 inline mr-1" />
+              <Link2 className="h-3.5 w-3.5 inline mr-1" />
               数据管理
             </button>
             <button
