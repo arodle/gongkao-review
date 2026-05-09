@@ -460,7 +460,7 @@ export const SAMPLE_PRACTICE_SETS: PracticeSet[] = [
 
 // --- Question Bank: unified bank of all questions, categorized by knowledge path ---
 export const SAMPLE_QUESTION_BANK: QuestionBankItem[] = [
-  // 主旨概括题
+  // ===== 言语理解与表达 - 片段阅读 - 主旨概括题 (a_1) =====
   {
     id: 'qb_1',
     content: '在宋明理学中，"格物致知"的"格物"二字，最准确的理解是：',
@@ -488,7 +488,7 @@ export const SAMPLE_QUESTION_BANK: QuestionBankItem[] = [
       { label: 'D', text: '文化多元化' },
     ],
     correctAnswer: 'A',
-    explanation: '文段核心围绕"文化是灵魂"展开，强调文化对民族的重要性，属于主旨概括题的典型解题思路。',
+    explanation: '文段核心围绕"文化是灵魂"展开，强调文化对民族的重要性，属于主旨概括题的典型解题思路——找中心句。',
     linkedAngleId: 'a_1',
     linkedAngleName: '主旨概括题',
     knowledgePath: '行测/言语理解与表达/片段阅读/主旨概括题',
@@ -497,22 +497,40 @@ export const SAMPLE_QUESTION_BANK: QuestionBankItem[] = [
   },
   {
     id: 'qb_3',
-    content: '俗话说："良药苦口利于病，忠言逆耳利于行。"这句话主要说明了：',
+    content: '"随着互联网技术的飞速发展，传统媒体面临着前所未有的挑战。然而，挑战与机遇并存，传统媒体若能积极拥抱变革，借助新技术实现转型升级，便能在新时代焕发新的活力。"这段文字的主旨是：',
     options: [
-      { label: 'A', text: '好的建议往往不好听但有用' },
-      { label: 'B', text: '药都是苦的' },
-      { label: 'C', text: '忠言一定逆耳' },
-      { label: 'D', text: '要勇于接受批评' },
+      { label: 'A', text: '传统媒体面临严峻挑战' },
+      { label: 'B', text: '互联网技术对传统媒体的冲击' },
+      { label: 'C', text: '传统媒体应积极转型升级以应对挑战' },
+      { label: 'D', text: '新媒体将完全取代传统媒体' },
     ],
-    correctAnswer: 'A',
-    explanation: '这是一个比喻论证，用"良药苦口"类比"忠言逆耳"，说明好的建议虽然不好听但有实际价值。',
+    correctAnswer: 'C',
+    explanation: '文段虽先说挑战，但转折词"然而"之后是重点——传统媒体应积极拥抱变革实现转型升级。主旨概括题需关注转折后的内容。',
     linkedAngleId: 'a_1',
     linkedAngleName: '主旨概括题',
     knowledgePath: '行测/言语理解与表达/片段阅读/主旨概括题',
     source: 'upload',
     createdAt: '2024-01-15',
   },
-  // 意图判断题
+  {
+    id: 'qb_100',
+    content: '"如果说知识贫穷是一种不幸，那么知识富有是否就一定幸福呢？未必。拥有知识并不等于拥有智慧，也不等于拥有快乐。知识的积累如果缺乏正确的价值导向，反而可能成为危害社会的工具。"对这段话概括最准确的是：',
+    options: [
+      { label: 'A', text: '知识富有不一定幸福' },
+      { label: 'B', text: '知识积累需要正确的价值导向' },
+      { label: 'C', text: '知识贫穷是一种不幸' },
+      { label: 'D', text: '知识与智慧、快乐无关' },
+    ],
+    correctAnswer: 'B',
+    explanation: '文段层层递进，从"知识富有不一定幸福"到"缺乏正确价值导向反而危害社会"，核心论点是知识积累需要正确的价值导向。',
+    linkedAngleId: 'a_1',
+    linkedAngleName: '主旨概括题',
+    knowledgePath: '行测/言语理解与表达/片段阅读/主旨概括题',
+    source: 'upload',
+    createdAt: '2024-02-01',
+  },
+
+  // ===== 言语理解与表达 - 片段阅读 - 意图判断题 (a_2) =====
   {
     id: 'qb_4',
     content: '作家写作时，总想把自己的思想融入作品，但过于直白地表达观点，反而会让读者产生抵触心理。因此，高明的作家往往通过含蓄的方式传递思想。这段话意在强调：',
@@ -547,7 +565,25 @@ export const SAMPLE_QUESTION_BANK: QuestionBankItem[] = [
     source: 'upload',
     createdAt: '2024-01-20',
   },
-  // 实词辨析
+  {
+    id: 'qb_101',
+    content: '"某市图书馆的藏书量十年间增长了3倍，但到馆读者人数却下降了40%。图书馆负责人表示，电子阅读的普及是主要原因。"这段话意在说明：',
+    options: [
+      { label: 'A', text: '图书馆藏书量增长迅速' },
+      { label: 'B', text: '电子阅读对传统图书馆造成了冲击' },
+      { label: 'C', text: '人们不再喜欢读书' },
+      { label: 'D', text: '图书馆应该减少藏书量' },
+    ],
+    correctAnswer: 'B',
+    explanation: '文段呈现藏书增长但读者下降的对比，负责人指出原因是电子阅读普及，意图在于说明电子阅读对传统图书馆的冲击。',
+    linkedAngleId: 'a_2',
+    linkedAngleName: '意图判断题',
+    knowledgePath: '行测/言语理解与表达/片段阅读/意图判断题',
+    source: 'upload',
+    createdAt: '2024-02-05',
+  },
+
+  // ===== 言语理解与表达 - 逻辑填空 - 实词辨析 (a_3) =====
   {
     id: 'qb_6',
     content: '面对困境，他不但没有退缩，反而_______地迎难而上。填入画横线部分最恰当的是：',
@@ -582,7 +618,25 @@ export const SAMPLE_QUESTION_BANK: QuestionBankItem[] = [
     source: 'upload',
     createdAt: '2024-02-10',
   },
-  // 成语辨析
+  {
+    id: 'qb_102',
+    content: '城市的发展不应以_______环境为代价，而应在保护中发展，在发展中保护。填入画横线部分最恰当的是：',
+    options: [
+      { label: 'A', text: '牺牲' },
+      { label: 'B', text: '损坏' },
+      { label: 'C', text: '毁坏' },
+      { label: 'D', text: '破坏' },
+    ],
+    correctAnswer: 'A',
+    explanation: '"牺牲"暗含为某种目的而主动放弃，与"以……为代价"搭配最恰当，语义也最贴切。"损坏""毁坏"侧重意外，"破坏"侧重故意损害。',
+    linkedAngleId: 'a_3',
+    linkedAngleName: '实词辨析',
+    knowledgePath: '行测/言语理解与表达/逻辑填空/实词辨析',
+    source: 'upload',
+    createdAt: '2024-02-15',
+  },
+
+  // ===== 言语理解与表达 - 逻辑填空 - 成语辨析 (a_4) =====
   {
     id: 'qb_8',
     content: '他在学术研究中_______，终于取得了突破性成果。填入画横线部分最恰当的是：',
@@ -617,7 +671,25 @@ export const SAMPLE_QUESTION_BANK: QuestionBankItem[] = [
     source: 'upload',
     createdAt: '2024-02-15',
   },
-  // 行程问题
+  {
+    id: 'qb_103',
+    content: '近年来，一些商家为了追求利润，_______，以次充好，严重损害了消费者的权益。填入画横线部分最恰当的是：',
+    options: [
+      { label: 'A', text: '掩耳盗铃' },
+      { label: 'B', text: '偷工减料' },
+      { label: 'C', text: '刻舟求剑' },
+      { label: 'D', text: '守株待兔' },
+    ],
+    correctAnswer: 'B',
+    explanation: '"偷工减料"指不按质量要求偷工减料，与后文"以次充好"构成并列关系，符合商家追求利润的语境。',
+    linkedAngleId: 'a_4',
+    linkedAngleName: '成语辨析',
+    knowledgePath: '行测/言语理解与表达/逻辑填空/成语辨析',
+    source: 'upload',
+    createdAt: '2024-03-01',
+  },
+
+  // ===== 数量关系 - 数学运算 - 行程问题 (a_5) =====
   {
     id: 'qb_10',
     content: '甲乙两地相距300公里，一辆汽车从甲地出发，以每小时60公里的速度行驶，另一辆汽车同时从乙地出发，以每小时40公里的速度行驶，两车相向而行，几小时后相遇？',
@@ -652,7 +724,25 @@ export const SAMPLE_QUESTION_BANK: QuestionBankItem[] = [
     source: 'upload',
     createdAt: '2024-02-20',
   },
-  // 工程问题
+  {
+    id: 'qb_104',
+    content: '甲、乙两人分别从A、B两地同时出发相向而行，甲每小时走5公里，乙每小时走4公里，两人相遇时甲比乙多走了3公里，则A、B两地相距多少公里？',
+    options: [
+      { label: 'A', text: '24公里' },
+      { label: 'B', text: '27公里' },
+      { label: 'C', text: '30公里' },
+      { label: 'D', text: '33公里' },
+    ],
+    correctAnswer: 'B',
+    explanation: '设相遇时间为t小时，则5t-4t=3，t=3小时。总路程=(5+4)×3=27公里。',
+    linkedAngleId: 'a_5',
+    linkedAngleName: '行程问题',
+    knowledgePath: '行测/数量关系/数学运算/行程问题',
+    source: 'upload',
+    createdAt: '2024-03-05',
+  },
+
+  // ===== 数量关系 - 数学运算 - 工程问题 (a_6) =====
   {
     id: 'qb_12',
     content: '一项工程，甲单独做需12天完成，乙单独做需18天完成，两人合作几天可以完成？',
@@ -670,7 +760,97 @@ export const SAMPLE_QUESTION_BANK: QuestionBankItem[] = [
     source: 'mindmap',
     createdAt: '2024-01-01',
   },
-  // 增长率
+  {
+    id: 'qb_105',
+    content: '一项工程，甲单独做需要20天完成，乙单独做需要30天完成。甲先单独做4天后，剩下的由甲乙合作完成，还需要多少天？',
+    options: [
+      { label: 'A', text: '8天' },
+      { label: 'B', text: '9.6天' },
+      { label: 'C', text: '10天' },
+      { label: 'D', text: '12天' },
+    ],
+    correctAnswer: 'B',
+    explanation: '甲4天完成4/20=1/5，剩余4/5。合作效率=1/20+1/30=5/60=1/12，还需(4/5)÷(1/12)=48/5=9.6天。',
+    linkedAngleId: 'a_6',
+    linkedAngleName: '工程问题',
+    knowledgePath: '行测/数量关系/数学运算/工程问题',
+    source: 'upload',
+    createdAt: '2024-03-10',
+  },
+
+  // ===== 判断推理 - 图形推理 - 位置规律 (a_7) =====
+  {
+    id: 'qb_106',
+    content: '在图形推理中，一组图形的每个小元素依次向右移动一格，到最右侧后从左侧出现，这属于哪种规律？',
+    options: [
+      { label: 'A', text: '平移规律' },
+      { label: 'B', text: '旋转规律' },
+      { label: 'C', text: '翻转规律' },
+      { label: 'D', text: '叠加规律' },
+    ],
+    correctAnswer: 'A',
+    explanation: '元素沿某一方向等距移动，到达边界后从另一侧出现，属于平移规律。这是位置规律中最基本的考查方式。',
+    linkedAngleId: 'a_7',
+    linkedAngleName: '位置规律',
+    knowledgePath: '行测/判断推理/图形推理/位置规律',
+    source: 'mindmap',
+    createdAt: '2024-01-01',
+  },
+  {
+    id: 'qb_107',
+    content: '九宫格图形推理中，第一行元素整体顺时针旋转90度得到第二行，第二行旋转90度得到第三行。这种规律属于：',
+    options: [
+      { label: 'A', text: '位置规律-平移' },
+      { label: 'B', text: '位置规律-旋转' },
+      { label: 'C', text: '样式规律-遍历' },
+      { label: 'D', text: '属性规律-对称' },
+    ],
+    correctAnswer: 'B',
+    explanation: '元素方向发生规律性变化（顺时针/逆时针旋转固定角度），属于位置规律中的旋转规律。',
+    linkedAngleId: 'a_7',
+    linkedAngleName: '位置规律',
+    knowledgePath: '行测/判断推理/图形推理/位置规律',
+    source: 'upload',
+    createdAt: '2024-03-15',
+  },
+
+  // ===== 判断推理 - 逻辑判断 - 削弱论证 (a_8) =====
+  {
+    id: 'qb_108',
+    content: '某研究显示，每天喝咖啡的人患心脏病的概率比不喝咖啡的人低20%。由此得出结论：喝咖啡有助于预防心脏病。以下哪项如果为真，最能削弱上述结论？',
+    options: [
+      { label: 'A', text: '喝咖啡的人往往更注重锻炼和饮食健康' },
+      { label: 'B', text: '咖啡的种类不同，对心脏的影响也不同' },
+      { label: 'C', text: '有些人喝咖啡后会出现心悸症状' },
+      { label: 'D', text: '每天喝咖啡的人收入水平普遍较高' },
+    ],
+    correctAnswer: 'A',
+    explanation: 'A项指出存在他因——喝咖啡的人本身更注重健康，可能是锻炼和饮食导致心脏病发病率低，属于"他因削弱"，最能削弱因果关系。',
+    linkedAngleId: 'a_8',
+    linkedAngleName: '削弱论证',
+    knowledgePath: '行测/判断推理/逻辑判断/削弱论证',
+    source: 'mindmap',
+    createdAt: '2024-01-01',
+  },
+  {
+    id: 'qb_109',
+    content: '某市实施限行政策后，交通拥堵指数下降了15%。有专家认为，限行政策有效缓解了交通拥堵。以下哪项如果为真，最能质疑该专家的观点？',
+    options: [
+      { label: 'A', text: '该市同期新增了3条地铁线路' },
+      { label: 'B', text: '其他城市实施限行后效果不佳' },
+      { label: 'C', text: '限行政策得到了市民的普遍支持' },
+      { label: 'D', text: '该市交通事故率也在同期下降' },
+    ],
+    correctAnswer: 'A',
+    explanation: 'A项指出地铁线路开通这一他因，可能是地铁而非限行缓解了拥堵，属于他因削弱。B项是类比削弱，力度弱于A项的他因削弱。',
+    linkedAngleId: 'a_8',
+    linkedAngleName: '削弱论证',
+    knowledgePath: '行测/判断推理/逻辑判断/削弱论证',
+    source: 'upload',
+    createdAt: '2024-03-20',
+  },
+
+  // ===== 资料分析 - 增长率计算 - 同比/环比增长 (a_9) =====
   {
     id: 'qb_13',
     content: '某企业2023年利润为500万元，2022年为400万元，则利润同比增长：',
@@ -704,5 +884,111 @@ export const SAMPLE_QUESTION_BANK: QuestionBankItem[] = [
     knowledgePath: '行测/资料分析/增长量与增长率/同比/环比增长',
     source: 'upload',
     createdAt: '2024-03-01',
+  },
+  {
+    id: 'qb_110',
+    content: '某商品1月售价100元，2月售价105元，3月售价103元，则3月环比增长率为：',
+    options: [
+      { label: 'A', text: '3%' },
+      { label: 'B', text: '-1.9%' },
+      { label: 'C', text: '5%' },
+      { label: 'D', text: '-2%' },
+    ],
+    correctAnswer: 'B',
+    explanation: '环比增长率=(103-105)/105×100%≈-1.9%。环比是与上一期比较，3月环比是与2月比较。',
+    linkedAngleId: 'a_9',
+    linkedAngleName: '同比/环比增长',
+    knowledgePath: '行测/资料分析/增长量与增长率/同比/环比增长',
+    source: 'upload',
+    createdAt: '2024-04-01',
+  },
+
+  // ===== 常识判断 - 政治常识 - 习近平新时代中国特色社会主义思想 (a_10) =====
+  {
+    id: 'qb_111',
+    content: '习近平新时代中国特色社会主义思想明确，中国特色社会主义最本质的特征是：',
+    options: [
+      { label: 'A', text: '人民当家作主' },
+      { label: 'B', text: '中国共产党领导' },
+      { label: 'C', text: '公有制经济为主体' },
+      { label: 'D', text: '依法治国' },
+    ],
+    correctAnswer: 'B',
+    explanation: '习近平总书记明确指出，中国特色社会主义最本质的特征是中国共产党领导，这是习近平新时代中国特色社会主义思想的重要内容。',
+    linkedAngleId: 'a_10',
+    linkedAngleName: '习近平新时代中国特色社会主义思想',
+    knowledgePath: '行测/常识判断/政治常识/习近平新时代中国特色社会主义思想',
+    source: 'mindmap',
+    createdAt: '2024-01-01',
+  },
+  {
+    id: 'qb_112',
+    content: '党的二十大报告指出，从现在起，中国共产党的中心任务就是团结带领全国各族人民：',
+    options: [
+      { label: 'A', text: '实现中华民族伟大复兴' },
+      { label: 'B', text: '全面建成社会主义现代化强国、实现第二个百年奋斗目标，以中国式现代化全面推进中华民族伟大复兴' },
+      { label: 'C', text: '全面建设小康社会' },
+      { label: 'D', text: '实现共同富裕' },
+    ],
+    correctAnswer: 'B',
+    explanation: '党的二十大报告明确指出，从现在起，中国共产党的中心任务就是团结带领全国各族人民全面建成社会主义现代化强国、实现第二个百年奋斗目标，以中国式现代化全面推进中华民族伟大复兴。',
+    linkedAngleId: 'a_10',
+    linkedAngleName: '习近平新时代中国特色社会主义思想',
+    knowledgePath: '行测/常识判断/政治常识/习近平新时代中国特色社会主义思想',
+    source: 'upload',
+    createdAt: '2024-04-05',
+  },
+
+  // ===== 常识判断 - 法律常识 - 宪法 (a_11) =====
+  {
+    id: 'qb_113',
+    content: '根据我国宪法，中华人民共和国的一切权力属于：',
+    options: [
+      { label: 'A', text: '人民' },
+      { label: 'B', text: '公民' },
+      { label: 'C', text: '人民代表大会' },
+      { label: 'D', text: '国家机关' },
+    ],
+    correctAnswer: 'A',
+    explanation: '《宪法》第二条规定：中华人民共和国的一切权力属于人民。注意"人民"与"公民"的区别，人民是政治概念，公民是法律概念。',
+    linkedAngleId: 'a_11',
+    linkedAngleName: '宪法',
+    knowledgePath: '行测/常识判断/法律常识/宪法',
+    source: 'mindmap',
+    createdAt: '2024-01-01',
+  },
+  {
+    id: 'qb_114',
+    content: '我国现行宪法是哪一年颁布的？',
+    options: [
+      { label: 'A', text: '1954年' },
+      { label: 'B', text: '1975年' },
+      { label: 'C', text: '1978年' },
+      { label: 'D', text: '1982年' },
+    ],
+    correctAnswer: 'D',
+    explanation: '我国现行宪法是1982年颁布的，又称"八二宪法"，至今已进行了5次修正（1988、1993、1999、2004、2018年）。',
+    linkedAngleId: 'a_11',
+    linkedAngleName: '宪法',
+    knowledgePath: '行测/常识判断/法律常识/宪法',
+    source: 'upload',
+    createdAt: '2024-04-10',
+  },
+  {
+    id: 'qb_115',
+    content: '根据我国宪法规定，有权修改宪法的机关是：',
+    options: [
+      { label: 'A', text: '全国人民代表大会' },
+      { label: 'B', text: '全国人民代表大会常务委员会' },
+      { label: 'C', text: '国务院' },
+      { label: 'D', text: '最高人民法院' },
+    ],
+    correctAnswer: 'A',
+    explanation: '《宪法》第六十四条规定：宪法的修改，由全国人民代表大会常务委员会或者五分之一以上的全国人民代表大会代表提议，并由全国人民代表大会以全体代表的三分之二以上的多数通过。',
+    linkedAngleId: 'a_11',
+    linkedAngleName: '宪法',
+    knowledgePath: '行测/常识判断/法律常识/宪法',
+    source: 'upload',
+    createdAt: '2024-04-15',
   },
 ];

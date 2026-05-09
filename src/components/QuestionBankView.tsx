@@ -18,6 +18,7 @@ import {
   ChevronDown,
   Plus,
   FileJson,
+  FileSpreadsheet,
   Filter,
   Download,
   X,
@@ -277,6 +278,118 @@ function QuestionDetailCard({
   );
 }
 
+// --- CSV Template Download & Upload ---
+const CSV_TEMPLATE = `题目内容,选项A,选项B,选项C,选项D,正确答案,解析,知识点路径
+这是一道例题的题目内容,选项A的内容,选项B的内容,选项C的内容,选项D的内容,A,这是解析内容,行测/言语理解与表达/片段阅读/主旨概括题
+另一道题目内容,选项A,选项B,选项C,选项D,C,解析说明,行测/数量关系/数学运算/行程问题`;
+
+function downloadCsvTemplate() {
+  const BOM = '\uFEFF';
+  const blob = new Blob([BOM + CSV_TEMPLATE], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '题库导入模板.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function parseCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+function parseCsvToQuestions(csvText: string, pathNameMap: Record<string, string>): QuestionBankItem[] {
+  const lines = csvText.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return [];
+
+  // Skip header row
+  const items: QuestionBankItem[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseCsvLine(lines[i]);
+    if (cols.length < 6 || !cols[0] || !cols[1] || !cols[2]) continue;
+
+    const content = cols[0];
+    const optA = cols[1];
+    const optB = cols[2];
+    const optC = cols[3] || '';
+    const optD = cols[4] || '';
+    const correctAnswer = cols[5].toUpperCase();
+    const explanation = cols[6] || '';
+    const knowledgePath = cols[7] || '';
+
+    const options: QuestionOption[] = [
+      { label: 'A', text: optA },
+      { label: 'B', text: optB },
+    ];
+    if (optC) options.push({ label: 'C', text: optC });
+    if (optD) options.push({ label: 'D', text: optD });
+
+    // Try to find matching angle by knowledgePath
+    let linkedAngleId = '';
+    let linkedAngleName = '';
+    if (knowledgePath) {
+      for (const [nodeId, nodePath] of Object.entries(pathNameMap)) {
+        if (nodePath === knowledgePath) {
+          // This is a direct match - check if it's an angle node
+          const pathParts = nodePath.split('/');
+          linkedAngleId = nodeId;
+          linkedAngleName = pathParts[pathParts.length - 1];
+          break;
+        }
+      }
+      // If no direct match, try to find the deepest matching angle
+      if (!linkedAngleId) {
+        let bestMatch = '';
+        let bestMatchId = '';
+        let bestMatchName = '';
+        for (const [nodeId, nodePath] of Object.entries(pathNameMap)) {
+          if (knowledgePath.startsWith(nodePath) && nodePath.length > bestMatch.length) {
+            bestMatch = nodePath;
+            bestMatchId = nodeId;
+            bestMatchName = nodePath.split('/').pop() || '';
+          }
+        }
+        linkedAngleId = bestMatchId;
+        linkedAngleName = bestMatchName;
+      }
+    }
+
+    items.push({
+      id: createId('qb'),
+      content,
+      options,
+      correctAnswer,
+      explanation,
+      linkedAngleId,
+      linkedAngleName,
+      knowledgePath,
+      source: 'upload' as const,
+      createdAt: new Date().toISOString(),
+    });
+  }
+  return items;
+}
+
 // --- Add question form ---
 function AddQuestionForm({
   mindMap,
@@ -445,6 +558,7 @@ export default function QuestionBankView() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   // Build path name map for matching
   const pathNameMap = useMemo(() => {
@@ -555,6 +669,39 @@ export default function QuestionBankView() {
   const handleUploadClick = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
+
+  // Upload CSV
+  const handleCsvUploadClick = useCallback(() => {
+    csvInputRef.current?.click();
+  }, []);
+
+  const handleCsvFileUpload = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const text = evt.target?.result as string;
+          const items = parseCsvToQuestions(text, pathNameMap);
+
+          if (items.length === 0) {
+            alert('未找到有效的题目数据。请确保CSV格式正确，包含：题目内容、选项A-D、正确答案、解析、知识点路径。');
+            return;
+          }
+
+          dispatch({ type: 'ADD_QUESTION_BANK_ITEMS', payload: items });
+          alert(`成功导入 ${items.length} 道题目！`);
+        } catch {
+          alert('CSV解析失败，请检查文件格式。');
+        }
+      };
+      reader.readAsText(file, 'UTF-8');
+      e.target.value = '';
+    },
+    [dispatch, pathNameMap],
+  );
 
   const handleFileUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -668,8 +815,16 @@ export default function QuestionBankView() {
             {showAddForm ? '收起表单' : '手动添加'}
           </Button>
           <Button size="sm" variant="outline" onClick={handleUploadClick}>
-            <Upload className="h-3.5 w-3.5 mr-1" />
+            <FileJson className="h-3.5 w-3.5 mr-1" />
             上传JSON
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleCsvUploadClick}>
+            <FileSpreadsheet className="h-3.5 w-3.5 mr-1" />
+            上传CSV
+          </Button>
+          <Button size="sm" variant="outline" onClick={downloadCsvTemplate}>
+            <Download className="h-3.5 w-3.5 mr-1" />
+            CSV模板
           </Button>
           <Button size="sm" variant="outline" onClick={handleExport}>
             <Download className="h-3.5 w-3.5 mr-1" />
@@ -681,6 +836,13 @@ export default function QuestionBankView() {
             accept=".json"
             className="hidden"
             onChange={handleFileUpload}
+          />
+          <input
+            ref={csvInputRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={handleCsvFileUpload}
           />
         </div>
 
