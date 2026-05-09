@@ -382,7 +382,7 @@ export const SAMPLE_PRACTICE_SETS: PracticeSet[] = [
   {
     id: 'ps_1',
     name: '行测真题模拟卷一',
-    createdAt: new Date().toISOString(),
+    createdAt: '2024-06-01T00:00:00.000Z',
     questions: [
       {
         id: 'pq_1',

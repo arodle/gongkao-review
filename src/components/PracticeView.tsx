@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useMemo } from 'react';
-import type { KnowledgeNode, QuestionBankItem, PracticeQuestion } from '@/lib/types';
+import type { KnowledgeNode, QuestionBankItem } from '@/lib/types';
 import { useAppState, getAllAngles, findNodeById } from '@/lib/store';
 import { createId } from '@/lib/sample-data';
 import { getWrongColor } from '@/lib/color-utils';
@@ -443,6 +443,7 @@ type PracticePhase = 'select' | 'quiz' | 'result';
 
 export default function PracticeView() {
   const { state, addAnswerRecord, dispatch } = useAppState();
+  const bank = state.questionBank ?? [];
   const [phase, setPhase] = useState<PracticePhase>('select');
   const [selectedPath, setSelectedPath] = useState<string[]>([]);
   const [questionCount, setQuestionCount] = useState(5);
@@ -463,7 +464,7 @@ export default function PracticeView() {
 
     // If the selected node is an angle, get questions for that angle
     if (selectedNode.type === 'angle') {
-      return state.questionBank.filter((q) => q.linkedAngleId === selectedNodeId);
+      return bank.filter((q: QuestionBankItem) => q.linkedAngleId === selectedNodeId);
     }
 
     // Otherwise get all questions under descendant angles
@@ -474,8 +475,8 @@ export default function PracticeView() {
     }
     collectAngles(selectedNode);
 
-    return state.questionBank.filter((q) => descendantAngleIds.has(q.linkedAngleId));
-  }, [selectedPath, state.mindMap, state.questionBank]);
+    return bank.filter((q: QuestionBankItem) => descendantAngleIds.has(q.linkedAngleId));
+  }, [selectedPath, state.mindMap, bank]);
 
   const selectedPathNames = useMemo(() => {
     const names: string[] = [];
@@ -579,7 +580,7 @@ export default function PracticeView() {
       <div className="p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">真题练习</h2>
-          <Badge variant="outline">{state.questionBank.length} 题库</Badge>
+          <Badge variant="outline">{bank.length} 题库</Badge>
         </div>
 
         <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -593,7 +594,7 @@ export default function PracticeView() {
             mindMap={state.mindMap}
             selectedPath={selectedPath}
             onPathChange={setSelectedPath}
-            questionBank={state.questionBank}
+            questionBank={bank}
           />
         </Card>
 
