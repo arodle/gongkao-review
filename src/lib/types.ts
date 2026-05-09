@@ -81,4 +81,4 @@ export interface ExamResult {
   wrongQuestionIds: string[];
 }
 
-export type AppTab = 'mindmap' | 'practice' | 'exam';
+export type AppTab = 'mindmap' | 'practice' | 'exam' | 'bank';

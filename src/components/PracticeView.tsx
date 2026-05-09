@@ -107,7 +107,10 @@ function KnowledgeSelector({
           <Icon className="h-3.5 w-3.5 shrink-0" />
           <span className="truncate flex-1">{node.name}</span>
           {count > 0 && (
-            <Badge variant="secondary" className="text-[10px] h-4 px-1 shrink-0">
+            <Badge
+              variant="secondary"
+              className="text-[10px] h-5 px-1.5 shrink-0 bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-300 font-semibold"
+            >
               {count}题
             </Badge>
           )}
@@ -589,7 +592,12 @@ export default function PracticeView() {
 
         {/* Knowledge selector */}
         <Card className="p-4">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">选择知识点</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">选择知识点</h3>
+            <Badge variant="outline" className="text-[10px]">
+              {bank.length} 题库总量
+            </Badge>
+          </div>
           <KnowledgeSelector
             mindMap={state.mindMap}
             selectedPath={selectedPath}
@@ -643,14 +651,26 @@ export default function PracticeView() {
 
         {/* Start button */}
         <Button
-          className="w-full"
+          className={cn(
+            'w-full text-base font-bold',
+            availableQuestions.length > 0
+              ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200'
+              : '',
+          )}
           size="lg"
           disabled={availableQuestions.length === 0}
           onClick={handleStartPractice}
         >
-          <Play className="h-4 w-4 mr-2" />
-          开始练习 ({Math.min(questionCount, availableQuestions.length)} 题)
+          <Play className="h-5 w-5 mr-2" />
+          {availableQuestions.length > 0
+            ? `开始练习 (${Math.min(questionCount, availableQuestions.length)} 题)`
+            : '请先选择有题目的知识点'}
         </Button>
+        {availableQuestions.length === 0 && selectedPath.length > 0 && (
+          <p className="text-xs text-center text-orange-500">
+            该知识点下暂无题目，请选择其他知识点或前往题库添加题目
+          </p>
+        )}
       </div>
     );
   }

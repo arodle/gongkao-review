@@ -6,12 +6,14 @@ import { AppProvider, useAppState } from '@/lib/store';
 import MindMapView from '@/components/MindMapView';
 import PracticeView from '@/components/PracticeView';
 import ExamView from '@/components/ExamView';
+import QuestionBankView from '@/components/QuestionBankView';
 import { ImportExportPanel, AngleMatcher } from '@/components/ImportExportPanel';
 import { cn } from '@/lib/utils';
 import {
   GitBranch,
   BookOpen,
   FileCheck,
+  Database,
   Settings,
   Link2,
   Menu,
@@ -32,6 +34,7 @@ function AppContent() {
     { id: 'mindmap', label: '思维导图', icon: GitBranch },
     { id: 'practice', label: '真题练习', icon: BookOpen },
     { id: 'exam', label: '套卷模式', icon: FileCheck },
+    { id: 'bank', label: '题库', icon: Database },
   ];
 
   const handleUpdatePracticeSet = useCallback(
@@ -106,7 +109,7 @@ function AppContent() {
 
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-[10px] hidden md:flex">
-            {totalAngles} 考点 · {totalQuestions} 例题
+            {totalAngles} 考点 · {state.questionBank?.length ?? 0} 题库
           </Badge>
           <Button
             variant="ghost"
@@ -126,6 +129,7 @@ function AppContent() {
           {activeTab === 'mindmap' && <MindMapView showQuestions={true} />}
           {activeTab === 'practice' && <PracticeView />}
           {activeTab === 'exam' && <ExamView />}
+          {activeTab === 'bank' && <QuestionBankView />}
         </main>
 
         {/* Sidebar */}
