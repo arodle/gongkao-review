@@ -4,7 +4,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import type { KnowledgeNode, QuestionBankItem } from '@/lib/types';
 import { useAppState, getAllAngles, findNodeById } from '@/lib/store';
 import { createId } from '@/lib/sample-data';
-import { getWrongColor } from '@/lib/color-utils';
+import { getWrongColor, getWrongTextColor } from '@/lib/color-utils';
 import { cn } from '@/lib/utils';
 import {
   CheckCircle2,
@@ -18,11 +18,17 @@ import {
   ArrowLeft,
   Play,
   Eye,
+  LightbulbIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 
 // Build a path name map: nodeId -> path name
 function buildPathNameMap(
@@ -88,10 +94,8 @@ function KnowledgeSelector({
     const counts: Record<string, number> = {};
     function countForNode(node: KnowledgeNode): number {
       const nodePath = pathNameMap[node.id] || '';
-      // Count directly linked questions
       let directCount = questionBank.filter((q: QuestionBankItem) => {
         if (q.linkedAngleId === node.id) return true;
-        // Also match by knowledgePath
         if (nodePath && q.knowledgePath) {
           return q.knowledgePath === nodePath || q.knowledgePath.startsWith(nodePath + '/');
         }
@@ -182,19 +186,31 @@ function KnowledgeSelector({
   );
 }
 
-// --- Mini Mind Map for result display ---
-function ResultMindMap({
+// --- Node type config for result mind map ---
+const NODE_TYPE_CONFIG_RESULT: Record<string, { icon: React.ElementType; defaultBg: string; defaultBorder: string }> = {
+  subject: { icon: BookOpen, defaultBg: 'bg-blue-50 dark:bg-blue-950', defaultBorder: 'border-blue-300 dark:border-blue-700' },
+  knowledge: { icon: Brain, defaultBg: 'bg-indigo-50 dark:bg-indigo-950', defaultBorder: 'border-indigo-300 dark:border-indigo-700' },
+  subknowledge: { icon: Target, defaultBg: 'bg-violet-50 dark:bg-violet-950', defaultBorder: 'border-violet-300 dark:border-violet-700' },
+  angle: { icon: Lightbulb, defaultBg: 'bg-amber-50 dark:bg-amber-950', defaultBorder: 'border-amber-300 dark:border-amber-700' },
+};
+
+// --- Result Mind Map with rectangle nodes (like MindMapView) ---
+function ResultMindMapRect({
   node,
   depth,
   wrongAngleIds,
+  wrongCounts,
   litUpIds,
+  wrongQuestionsMap,
 }: {
   node: KnowledgeNode;
   depth: number;
   wrongAngleIds: Set<string>;
+  wrongCounts: Record<string, number>;
   litUpIds: Set<string>;
+  wrongQuestionsMap: Record<string, QuestionBankItem[]>;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(depth < 2);
   const isWrong = wrongAngleIds.has(node.id);
   const isLitUp = litUpIds.has(node.id);
   const hasRelevantChild = node.children.some((c) =>
@@ -204,55 +220,126 @@ function ResultMindMap({
   // Only render nodes that are relevant or ancestors of relevant nodes
   if (depth > 0 && !isWrong && !isLitUp && !hasRelevantChild) return null;
 
-  const typeIcons: Record<string, React.ElementType> = {
-    subject: BookOpen,
-    knowledge: Brain,
-    subknowledge: Target,
-    angle: Lightbulb,
-  };
-  const Icon = typeIcons[node.type] || BookOpen;
+  const config = NODE_TYPE_CONFIG_RESULT[node.type] || NODE_TYPE_CONFIG_RESULT.subject;
+  const IconComponent = config.icon;
+  const wrongCount = wrongCounts[node.id] || 0;
+  const wrongColor = isWrong && node.type === 'angle' && wrongCount > 0 ? getWrongColor(wrongCount) : null;
+  const wrongTextColorVal = isWrong && node.type === 'angle' && wrongCount > 0 ? getWrongTextColor(wrongCount) : null;
 
-  const wrongColor = isWrong && node.type === 'angle' ? getWrongColor(
-    // Estimate wrong count from wrongAngleIds presence
-    wrongAngleIds.has(node.id) ? 1 : 0,
-  ) : null;
+  let nodeBg = config.defaultBg;
+  let nodeBorder = config.defaultBorder;
+  let nodeTextColor = '';
+
+  if (wrongColor && node.type === 'angle') {
+    nodeBg = '';
+    nodeBorder = '';
+    nodeTextColor = wrongTextColorVal || '';
+  } else if (isLitUp && !isWrong) {
+    nodeBg = 'bg-yellow-100 dark:bg-yellow-900';
+    nodeBorder = 'border-yellow-400 dark:border-yellow-600';
+  }
+
+  const hasChildren = node.children.length > 0;
+  const angleWrongQuestions = wrongQuestionsMap[node.id] || [];
 
   return (
-    <div style={{ marginLeft: depth > 0 ? '16px' : '0' }}>
-      <button
-        type="button"
+    <div className="flex flex-col items-center">
+      {/* Rectangle node */}
+      <div
         className={cn(
-          'flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors w-full text-left',
-          isLitUp && !isWrong && 'bg-yellow-100 dark:bg-yellow-900 border border-yellow-300',
-          isWrong && node.type === 'angle',
+          'relative flex items-center gap-2 px-3 py-2 rounded-xl border-2 min-w-[100px] max-w-[260px] text-center cursor-pointer transition-all duration-300 hover:shadow-lg select-none',
+          nodeBg,
+          nodeBorder,
         )}
-        style={wrongColor ? { backgroundColor: wrongColor } : undefined}
-        onClick={() => setExpanded(!expanded)}
+        style={wrongColor ? { backgroundColor: wrongColor, borderColor: wrongColor, color: nodeTextColor } : undefined}
+        onClick={() => {
+          if (hasChildren) setExpanded(!expanded);
+        }}
       >
-        {node.children.length > 0 && (
-          <span className="text-[10px] text-gray-400">{expanded ? '▼' : '▶'}</span>
+        <IconComponent className="h-4 w-4 shrink-0 opacity-70" style={wrongColor ? { color: nodeTextColor } : undefined} />
+        <span
+          className="text-sm font-semibold leading-tight truncate"
+          style={wrongColor ? { color: nodeTextColor } : isLitUp && !isWrong ? { color: '#92400e' } : undefined}
+        >
+          {node.name}
+        </span>
+        {hasChildren && (
+          <span className="shrink-0 ml-0.5">
+            {expanded ? <ChevronDown className="h-3.5 w-3.5 opacity-50" /> : <ChevronRight className="h-3.5 w-3.5 opacity-50" />}
+          </span>
         )}
-        <Icon className="h-3 w-3 shrink-0" />
-        <span className="truncate font-medium">{node.name}</span>
-        {isWrong && node.type === 'angle' && (
-          <Badge className="ml-auto text-[9px] h-4 px-1 bg-red-500 text-white">错</Badge>
+        {/* Wrong count badge - clickable to show wrong questions */}
+        {wrongCount > 0 && node.type === 'angle' && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Badge
+                variant="destructive"
+                className="absolute -top-2 -right-2 h-5 min-w-[20px] text-[10px] px-1 cursor-pointer hover:scale-110 transition-transform"
+                onClick={(e) => e.stopPropagation()}
+              >
+                错{wrongCount}
+              </Badge>
+            </PopoverTrigger>
+            <PopoverContent className="w-[320px] max-h-[300px] overflow-auto p-3" side="right" align="start">
+              <h4 className="text-xs font-semibold text-red-600 mb-2 flex items-center gap-1">
+                <XCircle className="h-3.5 w-3.5" />
+                「{node.name}」错题列表
+              </h4>
+              <div className="space-y-2">
+                {angleWrongQuestions.map((q, idx) => (
+                  <div key={q.id} className="p-2 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800 space-y-1.5">
+                    <p className="text-[11px] font-medium text-gray-700 dark:text-gray-300 whitespace-pre-line">
+                      {idx + 1}. {q.content}
+                    </p>
+                    <div className="grid grid-cols-2 gap-1">
+                      {q.options.map((opt) => (
+                        <div
+                          key={opt.label}
+                          className={cn(
+                            'text-[10px] px-1.5 py-1 rounded',
+                            opt.label === q.correctAnswer
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 font-medium'
+                              : 'bg-gray-50 dark:bg-gray-800 text-gray-500',
+                          )}
+                        >
+                          {opt.label}. {opt.text}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-gray-500">正确答案：<span className="text-green-600 font-medium">{q.correctAnswer}</span></p>
+                    {q.explanation && (
+                      <p className="text-[10px] text-gray-400 italic">{q.explanation}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
         )}
-        {isLitUp && !isWrong && (
-          <Badge className="ml-auto text-[9px] h-4 px-1 bg-yellow-500 text-white">对</Badge>
+        {/* Correct badge */}
+        {isLitUp && !isWrong && node.type === 'angle' && (
+          <CheckCircle2 className="absolute -top-2 -right-2 h-5 w-5 text-green-500 bg-white dark:bg-gray-900 rounded-full" />
         )}
-      </button>
-      {expanded && node.children.length > 0 && (
-        <div className="mt-0.5">
-          {node.children.map((child) => (
-            <ResultMindMap
-              key={child.id}
-              node={child}
-              depth={depth + 1}
-              wrongAngleIds={wrongAngleIds}
-              litUpIds={litUpIds}
-            />
-          ))}
-        </div>
+      </div>
+
+      {/* Children */}
+      {hasChildren && expanded && (
+        <>
+          <div className="w-px h-4 bg-gray-300 dark:bg-gray-600" />
+          <div className="flex flex-wrap justify-center gap-3">
+            {node.children.map((child) => (
+              <ResultMindMapRect
+                key={child.id}
+                node={child}
+                depth={depth + 1}
+                wrongAngleIds={wrongAngleIds}
+                wrongCounts={wrongCounts}
+                litUpIds={litUpIds}
+                wrongQuestionsMap={wrongQuestionsMap}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
@@ -532,12 +619,6 @@ export default function PracticeView() {
     });
   }, [selectedNodeId, state.mindMap, bank, pathNameMap]);
 
-  // Selected node display name
-  const selectedNodePath = useMemo(() => {
-    if (!selectedNodeId) return '';
-    return pathNameMap[selectedNodeId] || '';
-  }, [selectedNodeId, pathNameMap]);
-
   const handleStartPractice = useCallback(() => {
     // Shuffle and pick questions
     const shuffled = [...availableQuestions].sort(() => Math.random() - 0.5);
@@ -573,6 +654,8 @@ export default function PracticeView() {
     if (practiceQuestions.length === 0) return null;
     const wrongAngleIds = new Set<string>();
     const litUpIds = new Set<string>();
+    const wrongCounts: Record<string, number> = {};
+    const wrongQuestionsMap: Record<string, QuestionBankItem[]> = {};
 
     for (const q of practiceQuestions) {
       const userAnswer = answers[q.id];
@@ -581,6 +664,11 @@ export default function PracticeView() {
         litUpIds.add(q.linkedAngleId);
       } else if (userAnswer !== undefined) {
         wrongAngleIds.add(q.linkedAngleId);
+        wrongCounts[q.linkedAngleId] = (wrongCounts[q.linkedAngleId] || 0) + 1;
+        if (!wrongQuestionsMap[q.linkedAngleId]) {
+          wrongQuestionsMap[q.linkedAngleId] = [];
+        }
+        wrongQuestionsMap[q.linkedAngleId].push(q);
       }
     }
 
@@ -613,7 +701,7 @@ export default function PracticeView() {
       (q) => answers[q.id] === q.correctAnswer,
     ).length;
 
-    return { wrongAngleIds, litUpIds, totalAnswered, correctCount };
+    return { wrongAngleIds, wrongCounts, wrongQuestionsMap, litUpIds, totalAnswered, correctCount };
   }, [practiceQuestions, answers, state.mindMap]);
 
   // --- Select Phase ---
@@ -622,94 +710,80 @@ export default function PracticeView() {
       <div className="p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">真题练习</h2>
-          <Badge variant="outline">{bank.length} 题库</Badge>
+          <Badge variant="outline">{bank.length} 题</Badge>
         </div>
 
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          从知识点树中选择要练习的考点，系统会从题库中抽取对应题目。支持按科目、知识点、子知识点、出题角度逐级选择。
+          从知识点树中选择要练习的考点，系统会从题库中抽取对应题目。点击节点即可选择，支持按科目、知识点、子知识点、出题角度逐级选择。
         </p>
 
-        {/* Knowledge selector */}
-        <Card className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">选择知识点</h3>
-            <Badge variant="outline" className="text-[10px]">
-              {bank.length} 题库总量
-            </Badge>
-          </div>
-          <KnowledgeSelector
-            mindMap={state.mindMap}
-            selectedNodeId={selectedNodeId}
-            onNodeSelect={setSelectedNodeId}
-            questionBank={bank}
-          />
-        </Card>
+        {/* Knowledge selector + Start button side by side */}
+        <div className="flex gap-4">
+          {/* Left: Knowledge selector */}
+          <Card className="p-4 flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">选择知识点</h3>
+              <Badge variant="outline" className="text-[10px]">
+                {bank.length} 题库总量
+              </Badge>
+            </div>
+            <KnowledgeSelector
+              mindMap={state.mindMap}
+              selectedNodeId={selectedNodeId}
+              onNodeSelect={setSelectedNodeId}
+              questionBank={bank}
+            />
+          </Card>
 
-        {/* Selected node display */}
-        {selectedNodePath && (
-          <Card className="p-4 bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
-            <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">已选择</p>
-            <div className="flex items-center flex-wrap gap-1">
-              {selectedNodePath.split('/').map((name, i) => (
-                <React.Fragment key={i}>
-                  {i > 0 && <ChevronRight className="h-3 w-3 text-blue-400" />}
-                  <span className="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 text-xs font-medium">
-                    {name}
+          {/* Right: Controls panel */}
+          <div className="w-[260px] shrink-0 space-y-3">
+            {/* Question count selector */}
+            {availableQuestions.length > 0 && (
+              <Card className="p-4">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">题目数量</h3>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={1}
+                    max={Math.min(availableQuestions.length, 20)}
+                    value={Math.min(questionCount, availableQuestions.length)}
+                    onChange={(e) => setQuestionCount(Number(e.target.value))}
+                    className="flex-1"
+                  />
+                  <span className="text-lg font-bold text-blue-600 dark:text-blue-400 w-12 text-center">
+                    {Math.min(questionCount, availableQuestions.length)}
                   </span>
-                </React.Fragment>
-              ))}
-            </div>
-            <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-              可用题目：{availableQuestions.length} 道
-            </p>
-          </Card>
-        )}
+                </div>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  可用 {availableQuestions.length} 道
+                </p>
+              </Card>
+            )}
 
-        {/* Question count selector */}
-        {availableQuestions.length > 0 && (
-          <Card className="p-4">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">选择题目数量</h3>
-            <div className="flex items-center gap-3">
-              <input
-                type="range"
-                min={1}
-                max={Math.min(availableQuestions.length, 20)}
-                value={Math.min(questionCount, availableQuestions.length)}
-                onChange={(e) => setQuestionCount(Number(e.target.value))}
-                className="flex-1"
-              />
-              <span className="text-lg font-bold text-blue-600 dark:text-blue-400 w-12 text-center">
-                {Math.min(questionCount, availableQuestions.length)} 题
-              </span>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              最多可选 {availableQuestions.length} 道（题库中该路径下的题目总数）
-            </p>
-          </Card>
-        )}
-
-        {/* Start button */}
-        <Button
-          className={cn(
-            'w-full text-base font-bold',
-            availableQuestions.length > 0
-              ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200'
-              : '',
-          )}
-          size="lg"
-          disabled={availableQuestions.length === 0}
-          onClick={handleStartPractice}
-        >
-          <Play className="h-5 w-5 mr-2" />
-          {availableQuestions.length > 0
-            ? `开始练习 (${Math.min(questionCount, availableQuestions.length)} 题)`
-            : '请先选择有题目的知识点'}
-        </Button>
-        {availableQuestions.length === 0 && selectedNodeId && (
-          <p className="text-xs text-center text-orange-500">
-            该知识点下暂无题目，请选择其他知识点或前往题库添加题目
-          </p>
-        )}
+            {/* Start button - always visible and prominent */}
+            <Button
+              className={cn(
+                'w-full text-base font-bold h-14',
+                availableQuestions.length > 0
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200'
+                  : '',
+              )}
+              size="lg"
+              disabled={availableQuestions.length === 0}
+              onClick={handleStartPractice}
+            >
+              <Play className="h-5 w-5 mr-2" />
+              {availableQuestions.length > 0
+                ? `开始练习 (${Math.min(questionCount, availableQuestions.length)} 题)`
+                : '请先选择有题目的知识点'}
+            </Button>
+            {availableQuestions.length === 0 && selectedNodeId && (
+              <p className="text-xs text-center text-orange-500">
+                该知识点下暂无题目，请选择其他知识点或前往题库添加
+              </p>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
@@ -728,7 +802,7 @@ export default function PracticeView() {
             返回选题
           </Button>
           <span className="text-sm font-medium text-gray-600">
-            {selectedNodePath || '已选择知识点'}
+            {pathNameMap[selectedNodeId || ''] || '已选择知识点'}
           </span>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-xs">
@@ -800,7 +874,7 @@ export default function PracticeView() {
 
   // --- Result Phase ---
   if (phase === 'result' && resultData) {
-    const { wrongAngleIds, litUpIds, correctCount } = resultData;
+    const { wrongAngleIds, wrongCounts, wrongQuestionsMap, litUpIds, correctCount } = resultData;
     const totalQuestions = practiceQuestions.length;
     const wrongCount = totalQuestions - correctCount;
 
@@ -809,7 +883,6 @@ export default function PracticeView() {
         {/* Result Header */}
         <div className="p-6 text-center bg-gradient-to-b from-blue-50 to-white dark:from-blue-950/30 dark:to-gray-900 shrink-0">
           <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200">练习完成</h2>
-          <p className="text-sm text-gray-500 mt-1">{selectedNodePath || ''}</p>
           <div className="mt-3 flex items-center justify-center gap-6">
             <div className="text-center">
               <p className="text-3xl font-bold text-green-600">{correctCount}</p>
@@ -826,20 +899,22 @@ export default function PracticeView() {
           </div>
         </div>
 
-        {/* Mind Map with color changes */}
+        {/* Mind Map with rectangle color changes */}
         <ScrollArea className="flex-1 p-4">
-          <div className="max-w-3xl mx-auto space-y-4">
+          <div className="max-w-4xl mx-auto space-y-4">
             <Card className="p-4">
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
                 知识点变色图
-                <Badge variant="secondary" className="text-[10px]">黄色=做对 · 红/黑渐变=做错</Badge>
+                <Badge variant="secondary" className="text-[10px]">黄色=做对 · 红/黑渐变=做错 · 点击错题数字查看详情</Badge>
               </h3>
-              <div className="border rounded-lg p-3 bg-gray-50 dark:bg-gray-900">
-                <ResultMindMap
+              <div className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-900 overflow-x-auto">
+                <ResultMindMapRect
                   node={state.mindMap}
                   depth={0}
                   wrongAngleIds={wrongAngleIds}
+                  wrongCounts={wrongCounts}
                   litUpIds={litUpIds}
+                  wrongQuestionsMap={wrongQuestionsMap}
                 />
               </div>
             </Card>

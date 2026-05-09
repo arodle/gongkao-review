@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import type { ExamResult, KnowledgeNode } from '@/lib/types';
+import type { ExamResult, KnowledgeNode, PracticeQuestion, QuestionBankItem } from '@/lib/types';
 import { useAppState } from '@/lib/store';
 import { createId } from '@/lib/sample-data';
-import { getWrongColor } from '@/lib/color-utils';
+import { getWrongColor, getWrongTextColor } from '@/lib/color-utils';
 import { cn } from '@/lib/utils';
 import {
   CheckCircle2,
@@ -20,6 +20,8 @@ import {
   Lightbulb,
   ArrowLeft,
   Eye,
+  ChevronRight,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -37,22 +39,39 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 
 type ExamPhase = 'select' | 'running' | 'result';
 
-// --- Result Mind Map ---
+// --- Node type config for result mind map ---
+const NODE_TYPE_CONFIG_EXAM: Record<string, { icon: React.ElementType; defaultBg: string; defaultBorder: string }> = {
+  subject: { icon: BookOpen, defaultBg: 'bg-blue-50 dark:bg-blue-950', defaultBorder: 'border-blue-300 dark:border-blue-700' },
+  knowledge: { icon: Brain, defaultBg: 'bg-indigo-50 dark:bg-indigo-950', defaultBorder: 'border-indigo-300 dark:border-indigo-700' },
+  subknowledge: { icon: Target, defaultBg: 'bg-violet-50 dark:bg-violet-950', defaultBorder: 'border-violet-300 dark:border-violet-700' },
+  angle: { icon: Lightbulb, defaultBg: 'bg-amber-50 dark:bg-amber-950', defaultBorder: 'border-amber-300 dark:border-amber-700' },
+};
+
+// --- Result Mind Map with rectangle nodes ---
 function ExamResultMindMap({
   node,
   depth,
   wrongAngleIds,
+  wrongCounts,
   litUpIds,
+  wrongQuestionsMap,
 }: {
   node: KnowledgeNode;
   depth: number;
   wrongAngleIds: Set<string>;
+  wrongCounts: Record<string, number>;
   litUpIds: Set<string>;
+  wrongQuestionsMap: Record<string, PracticeQuestion[]>;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(depth < 2);
 
   function hasRelevantDescendant(n: KnowledgeNode): boolean {
     if (wrongAngleIds.has(n.id) || litUpIds.has(n.id)) return true;
@@ -65,51 +84,126 @@ function ExamResultMindMap({
 
   if (depth > 0 && !hasRelevant) return null;
 
-  const typeIcons: Record<string, React.ElementType> = {
-    subject: BookOpen,
-    knowledge: Brain,
-    subknowledge: Target,
-    angle: Lightbulb,
-  };
-  const Icon = typeIcons[node.type] || BookOpen;
+  const config = NODE_TYPE_CONFIG_EXAM[node.type] || NODE_TYPE_CONFIG_EXAM.subject;
+  const IconComponent = config.icon;
+  const wrongCount = wrongCounts[node.id] || 0;
+  const wrongColor = isWrong && node.type === 'angle' && wrongCount > 0 ? getWrongColor(wrongCount) : null;
+  const wrongTextColorVal = isWrong && node.type === 'angle' && wrongCount > 0 ? getWrongTextColor(wrongCount) : null;
 
-  const wrongColor = isWrong && node.type === 'angle' ? getWrongColor(1) : null;
+  let nodeBg = config.defaultBg;
+  let nodeBorder = config.defaultBorder;
+  let nodeTextColor = '';
+
+  if (wrongColor && node.type === 'angle') {
+    nodeBg = '';
+    nodeBorder = '';
+    nodeTextColor = wrongTextColorVal || '';
+  } else if (isLitUp && !isWrong) {
+    nodeBg = 'bg-yellow-100 dark:bg-yellow-900';
+    nodeBorder = 'border-yellow-400 dark:border-yellow-600';
+  }
+
+  const hasChildren = node.children.length > 0;
+  const angleWrongQuestions = wrongQuestionsMap[node.id] || [];
 
   return (
-    <div style={{ marginLeft: depth > 0 ? '16px' : '0' }}>
-      <button
-        type="button"
+    <div className="flex flex-col items-center">
+      {/* Rectangle node */}
+      <div
         className={cn(
-          'flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors w-full text-left',
-          isLitUp && !isWrong && 'bg-yellow-100 dark:bg-yellow-900 border border-yellow-300',
+          'relative flex items-center gap-2 px-3 py-2 rounded-xl border-2 min-w-[100px] max-w-[260px] text-center cursor-pointer transition-all duration-300 hover:shadow-lg select-none',
+          nodeBg,
+          nodeBorder,
         )}
-        style={wrongColor ? { backgroundColor: wrongColor } : undefined}
-        onClick={() => setExpanded(!expanded)}
+        style={wrongColor ? { backgroundColor: wrongColor, borderColor: wrongColor, color: nodeTextColor } : undefined}
+        onClick={() => {
+          if (hasChildren) setExpanded(!expanded);
+        }}
       >
-        {node.children.length > 0 && (
-          <span className="text-[10px] text-gray-400">{expanded ? '▼' : '▶'}</span>
+        <IconComponent className="h-4 w-4 shrink-0 opacity-70" style={wrongColor ? { color: nodeTextColor } : undefined} />
+        <span
+          className="text-sm font-semibold leading-tight truncate"
+          style={wrongColor ? { color: nodeTextColor } : isLitUp && !isWrong ? { color: '#92400e' } : undefined}
+        >
+          {node.name}
+        </span>
+        {hasChildren && (
+          <span className="shrink-0 ml-0.5">
+            {expanded ? <ChevronDown className="h-3.5 w-3.5 opacity-50" /> : <ChevronRight className="h-3.5 w-3.5 opacity-50" />}
+          </span>
         )}
-        <Icon className="h-3 w-3 shrink-0" />
-        <span className="truncate font-medium">{node.name}</span>
-        {isWrong && node.type === 'angle' && (
-          <Badge className="ml-auto text-[9px] h-4 px-1 bg-red-500 text-white">错</Badge>
+        {/* Wrong count badge - clickable popover */}
+        {wrongCount > 0 && node.type === 'angle' && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Badge
+                variant="destructive"
+                className="absolute -top-2 -right-2 h-5 min-w-[20px] text-[10px] px-1 cursor-pointer hover:scale-110 transition-transform"
+                onClick={(e) => e.stopPropagation()}
+              >
+                错{wrongCount}
+              </Badge>
+            </PopoverTrigger>
+            <PopoverContent className="w-[320px] max-h-[300px] overflow-auto p-3" side="right" align="start">
+              <h4 className="text-xs font-semibold text-red-600 mb-2 flex items-center gap-1">
+                <XCircle className="h-3.5 w-3.5" />
+                「{node.name}」错题列表
+              </h4>
+              <div className="space-y-2">
+                {angleWrongQuestions.map((q, idx) => (
+                  <div key={idx} className="p-2 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800 space-y-1.5">
+                    <p className="text-[11px] font-medium text-gray-700 dark:text-gray-300 whitespace-pre-line">
+                      {idx + 1}. {q.content}
+                    </p>
+                    <div className="grid grid-cols-2 gap-1">
+                      {q.options.map((opt) => (
+                        <div
+                          key={opt.label}
+                          className={cn(
+                            'text-[10px] px-1.5 py-1 rounded',
+                            opt.label === q.correctAnswer
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 font-medium'
+                              : 'bg-gray-50 dark:bg-gray-800 text-gray-500',
+                          )}
+                        >
+                          {opt.label}. {opt.text}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-gray-500">正确答案：<span className="text-green-600 font-medium">{q.correctAnswer}</span></p>
+                    {q.explanation && (
+                      <p className="text-[10px] text-gray-400 italic">{q.explanation}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
         )}
-        {isLitUp && !isWrong && (
-          <Badge className="ml-auto text-[9px] h-4 px-1 bg-yellow-500 text-white">对</Badge>
+        {/* Correct badge */}
+        {isLitUp && !isWrong && node.type === 'angle' && (
+          <CheckCircle2 className="absolute -top-2 -right-2 h-5 w-5 text-green-500 bg-white dark:bg-gray-900 rounded-full" />
         )}
-      </button>
-      {expanded && node.children.length > 0 && (
-        <div className="mt-0.5">
-          {node.children.map((child) => (
-            <ExamResultMindMap
-              key={child.id}
-              node={child}
-              depth={depth + 1}
-              wrongAngleIds={wrongAngleIds}
-              litUpIds={litUpIds}
-            />
-          ))}
-        </div>
+      </div>
+
+      {/* Children */}
+      {hasChildren && expanded && (
+        <>
+          <div className="w-px h-4 bg-gray-300 dark:bg-gray-600" />
+          <div className="flex flex-wrap justify-center gap-3">
+            {node.children.map((child) => (
+              <ExamResultMindMap
+                key={child.id}
+                node={child}
+                depth={depth + 1}
+                wrongAngleIds={wrongAngleIds}
+                wrongCounts={wrongCounts}
+                litUpIds={litUpIds}
+                wrongQuestionsMap={wrongQuestionsMap}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
@@ -217,6 +311,8 @@ export default function ExamView() {
 
     const wrongAngleIds = new Set<string>();
     const litUpIds = new Set<string>();
+    const wrongCounts: Record<string, number> = {};
+    const wrongQuestionsMap: Record<string, PracticeQuestion[]> = {};
 
     for (const q of selectedSet.questions) {
       const userAnswer = examResult.answers[q.id];
@@ -224,6 +320,11 @@ export default function ExamView() {
         litUpIds.add(q.linkedAngleId);
       } else {
         wrongAngleIds.add(q.linkedAngleId);
+        wrongCounts[q.linkedAngleId] = (wrongCounts[q.linkedAngleId] || 0) + 1;
+        if (!wrongQuestionsMap[q.linkedAngleId]) {
+          wrongQuestionsMap[q.linkedAngleId] = [];
+        }
+        wrongQuestionsMap[q.linkedAngleId].push(q);
       }
     }
 
@@ -249,7 +350,7 @@ export default function ExamView() {
     }
     propagateWrong(state.mindMap);
 
-    return { wrongAngleIds, litUpIds };
+    return { wrongAngleIds, wrongCounts, wrongQuestionsMap, litUpIds };
   }, [examResult, selectedSet, state.mindMap]);
 
   // --- Select Phase ---
@@ -550,7 +651,9 @@ export default function ExamView() {
                     node={state.mindMap}
                     depth={0}
                     wrongAngleIds={resultMindMapData.wrongAngleIds}
+                    wrongCounts={resultMindMapData.wrongCounts}
                     litUpIds={resultMindMapData.litUpIds}
+                    wrongQuestionsMap={resultMindMapData.wrongQuestionsMap}
                   />
                 </div>
               )}

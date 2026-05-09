@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useMemo } from 'react';
-import type { KnowledgeNode, NodeType, Question } from '@/lib/types';
+import type { KnowledgeNode, NodeType, Question, QuestionBankItem } from '@/lib/types';
 import { useAppState } from '@/lib/store';
 import { getWrongColor, getWrongTextColor } from '@/lib/color-utils';
 import { cn } from '@/lib/utils';
@@ -22,6 +22,11 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 
 // --- Node type config ---
 const NODE_TYPE_CONFIG: Record<
@@ -230,6 +235,62 @@ function InteractiveQuestionCard({
   );
 }
 
+// --- Wrong Question List for Popover ---
+function WrongQuestionList({ angleId, angleName }: { angleId: string; angleName: string }) {
+  const { state } = useAppState();
+  const bank = state.questionBank ?? [];
+
+  // Find wrong questions for this angle from answer records
+  const wrongQuestions = useMemo(() => {
+    const wrongQIds = new Set<string>();
+    for (const record of state.answerRecords) {
+      if (!record.isCorrect) {
+        wrongQIds.add(record.questionId);
+      }
+    }
+    return bank.filter((q: QuestionBankItem) => q.linkedAngleId === angleId && wrongQIds.has(q.id));
+  }, [state.answerRecords, bank, angleId]);
+
+  if (wrongQuestions.length === 0) {
+    return <p className="text-xs text-gray-500">暂无错题记录</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      <h4 className="text-xs font-semibold text-red-600 mb-2 flex items-center gap-1">
+        <XCircle className="h-3.5 w-3.5" />
+        「{angleName}」错题列表
+      </h4>
+      {wrongQuestions.map((q, idx) => (
+        <div key={q.id} className="p-2 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800 space-y-1.5">
+          <p className="text-[11px] font-medium text-gray-700 dark:text-gray-300 whitespace-pre-line">
+            {idx + 1}. {q.content}
+          </p>
+          <div className="grid grid-cols-2 gap-1">
+            {q.options.map((opt) => (
+              <div
+                key={opt.label}
+                className={cn(
+                  'text-[10px] px-1.5 py-1 rounded',
+                  opt.label === q.correctAnswer
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 font-medium'
+                    : 'bg-gray-50 dark:bg-gray-800 text-gray-500',
+                )}
+              >
+                {opt.label}. {opt.text}
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-gray-500">正确答案：<span className="text-green-600 font-medium">{q.correctAnswer}</span></p>
+          {q.explanation && (
+            <p className="text-[10px] text-gray-400 italic">{q.explanation}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // --- Tree Node Component ---
 interface TreeNodeProps {
   node: KnowledgeNode;
@@ -334,12 +395,20 @@ function TreeNodeComponent({
           </button>
         )}
         {stats.wrongCount > 0 && node.type === 'angle' && (
-          <Badge
-            variant="destructive"
-            className="absolute -top-2 -right-2 h-5 min-w-[20px] text-[10px] px-1"
-          >
-            {stats.wrongCount}错
-          </Badge>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Badge
+                variant="destructive"
+                className="absolute -top-2 -right-2 h-5 min-w-[20px] text-[10px] px-1 cursor-pointer hover:scale-110 transition-transform"
+                onClick={(e) => e.stopPropagation()}
+              >
+                错{stats.wrongCount}
+              </Badge>
+            </PopoverTrigger>
+            <PopoverContent className="w-[320px] max-h-[300px] overflow-auto p-3" side="right" align="start">
+              <WrongQuestionList angleId={node.id} angleName={node.name} />
+            </PopoverContent>
+          </Popover>
         )}
         {stats.correctCount > 0 && litUp && !(wrongColor && node.type === 'angle') && (
           <CheckCircle2 className="absolute -top-2 -right-2 h-5 w-5 text-green-500 bg-white dark:bg-gray-900 rounded-full" />
