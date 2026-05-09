@@ -24,24 +24,55 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-// --- Knowledge Tree Selector (cascading selection) ---
+// Build a path name map: nodeId -> path name
+function buildPathNameMap(
+  node: KnowledgeNode,
+  parentPath: string,
+  map: Record<string, string>,
+) {
+  const currentPath = parentPath ? `${parentPath}/${node.name}` : node.name;
+  map[node.id] = currentPath;
+  for (const child of node.children) {
+    buildPathNameMap(child, currentPath, map);
+  }
+}
+
+// Get all descendant IDs of a node (including itself)
+function getDescendantIdsList(node: KnowledgeNode): string[] {
+  const ids = [node.id];
+  for (const child of node.children) {
+    ids.push(...getDescendantIdsList(child));
+  }
+  return ids;
+}
+
+// --- Knowledge Tree Selector (single node selection with question counts) ---
 function KnowledgeSelector({
   mindMap,
-  selectedPath,
-  onPathChange,
+  selectedNodeId,
+  onNodeSelect,
   questionBank,
 }: {
   mindMap: KnowledgeNode;
-  selectedPath: string[];
-  onPathChange: (path: string[]) => void;
+  selectedNodeId: string | null;
+  onNodeSelect: (id: string | null) => void;
   questionBank: QuestionBankItem[];
 }) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => {
-    // Auto-expand first level
     const s = new Set<string>();
     s.add(mindMap.id);
+    for (const child of mindMap.children) {
+      s.add(child.id);
+    }
     return s;
   });
+
+  // Build path name map for knowledgePath matching
+  const pathNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    buildPathNameMap(mindMap, '', map);
+    return map;
+  }, [mindMap]);
 
   const toggleExpand = useCallback((id: string) => {
     setExpandedNodes((prev) => {
@@ -52,24 +83,37 @@ function KnowledgeSelector({
     });
   }, []);
 
-  // Count questions under each node
+  // Count questions under each node (using linkedAngleId AND knowledgePath matching)
   const questionCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     function countForNode(node: KnowledgeNode): number {
-      let total = questionBank.filter((q) => q.linkedAngleId === node.id).length;
+      const nodePath = pathNameMap[node.id] || '';
+      // Count directly linked questions
+      let directCount = questionBank.filter((q: QuestionBankItem) => {
+        if (q.linkedAngleId === node.id) return true;
+        // Also match by knowledgePath
+        if (nodePath && q.knowledgePath) {
+          return q.knowledgePath === nodePath || q.knowledgePath.startsWith(nodePath + '/');
+        }
+        return false;
+      }).length;
+      // But to avoid double-counting children, only count questions directly at this node
+      // plus children's counts
+      directCount = questionBank.filter((q: QuestionBankItem) => q.linkedAngleId === node.id).length;
+      let childCount = 0;
       for (const child of node.children) {
-        total += countForNode(child);
+        childCount += countForNode(child);
       }
-      counts[node.id] = total;
-      return total;
+      counts[node.id] = directCount + childCount;
+      return directCount + childCount;
     }
     countForNode(mindMap);
     return counts;
-  }, [mindMap, questionBank]);
+  }, [mindMap, questionBank, pathNameMap]);
 
   function renderNode(node: KnowledgeNode, depth: number) {
     const isExpanded = expandedNodes.has(node.id);
-    const isSelected = selectedPath[depth] === node.id;
+    const isSelected = selectedNodeId === node.id;
     const count = questionCounts[node.id] || 0;
 
     const typeIcons: Record<string, React.ElementType> = {
@@ -87,18 +131,23 @@ function KnowledgeSelector({
           className={cn(
             'w-full text-left flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm transition-colors',
             isSelected
-              ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-medium'
+              ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-medium ring-1 ring-blue-200'
               : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300',
           )}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
           onClick={() => {
-            // Select this node and trim deeper selections
-            onPathChange([...selectedPath.slice(0, depth), node.id]);
-            if (node.children.length > 0) toggleExpand(node.id);
+            onNodeSelect(isSelected ? null : node.id);
+            if (node.children.length > 0 && !isExpanded) toggleExpand(node.id);
           }}
         >
           {node.children.length > 0 ? (
-            <span className="text-gray-400 text-xs w-4 shrink-0">
+            <span
+              className="text-gray-400 text-xs w-4 shrink-0 cursor-pointer hover:text-gray-600"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleExpand(node.id);
+              }}
+            >
               {isExpanded ? '▼' : '▶'}
             </span>
           ) : (
@@ -448,56 +497,46 @@ export default function PracticeView() {
   const { state, addAnswerRecord, dispatch } = useAppState();
   const bank = state.questionBank ?? [];
   const [phase, setPhase] = useState<PracticePhase>('select');
-  const [selectedPath, setSelectedPath] = useState<string[]>([]);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [questionCount, setQuestionCount] = useState(5);
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [showResults, setShowResults] = useState<Record<string, boolean>>({});
   const [practiceQuestions, setPracticeQuestions] = useState<QuestionBankItem[]>([]);
 
-  // Get questions for selected knowledge path
+  // Build path name map
+  const pathNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    buildPathNameMap(state.mindMap, '', map);
+    return map;
+  }, [state.mindMap]);
+
+  // Get questions for selected knowledge node
   const availableQuestions = useMemo(() => {
-    if (selectedPath.length === 0) return [];
+    if (!selectedNodeId) return [];
 
-    const selectedNodeId = selectedPath[selectedPath.length - 1];
-    const angles = getAllAngles(state.mindMap);
     const selectedNode = findNodeById(state.mindMap, selectedNodeId);
-
     if (!selectedNode) return [];
 
-    // If the selected node is an angle, get questions for that angle
-    if (selectedNode.type === 'angle') {
-      return bank.filter((q: QuestionBankItem) => q.linkedAngleId === selectedNodeId);
-    }
+    const nodePath = pathNameMap[selectedNodeId] || '';
+    const descendantIds = new Set(getDescendantIdsList(selectedNode));
 
-    // Otherwise get all questions under descendant angles
-    const descendantAngleIds = new Set<string>();
-    function collectAngles(node: KnowledgeNode): void {
-      if (node.type === 'angle') descendantAngleIds.add(node.id);
-      node.children.forEach(collectAngles);
-    }
-    collectAngles(selectedNode);
-
-    return bank.filter((q: QuestionBankItem) => descendantAngleIds.has(q.linkedAngleId));
-  }, [selectedPath, state.mindMap, bank]);
-
-  const selectedPathNames = useMemo(() => {
-    const names: string[] = [];
-    function findPath(node: KnowledgeNode, depth: number): boolean {
-      if (selectedPath[depth] === node.id) {
-        names.push(node.name);
-        if (depth + 1 < selectedPath.length) {
-          for (const child of node.children) {
-            if (findPath(child, depth + 1)) return true;
-          }
-        }
-        return true;
+    return bank.filter((q: QuestionBankItem) => {
+      // Match by linkedAngleId being a descendant of selected node
+      if (q.linkedAngleId && descendantIds.has(q.linkedAngleId)) return true;
+      // Fallback: match by knowledgePath prefix
+      if (nodePath && q.knowledgePath) {
+        return q.knowledgePath === nodePath || q.knowledgePath.startsWith(nodePath + '/');
       }
       return false;
-    }
-    if (selectedPath.length > 0) findPath(state.mindMap, 0);
-    return names;
-  }, [selectedPath, state.mindMap]);
+    });
+  }, [selectedNodeId, state.mindMap, bank, pathNameMap]);
+
+  // Selected node display name
+  const selectedNodePath = useMemo(() => {
+    if (!selectedNodeId) return '';
+    return pathNameMap[selectedNodeId] || '';
+  }, [selectedNodeId, pathNameMap]);
 
   const handleStartPractice = useCallback(() => {
     // Shuffle and pick questions
@@ -600,18 +639,18 @@ export default function PracticeView() {
           </div>
           <KnowledgeSelector
             mindMap={state.mindMap}
-            selectedPath={selectedPath}
-            onPathChange={setSelectedPath}
+            selectedNodeId={selectedNodeId}
+            onNodeSelect={setSelectedNodeId}
             questionBank={bank}
           />
         </Card>
 
-        {/* Selected path display */}
-        {selectedPathNames.length > 0 && (
+        {/* Selected node display */}
+        {selectedNodePath && (
           <Card className="p-4 bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
-            <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">已选择路径</p>
+            <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">已选择</p>
             <div className="flex items-center flex-wrap gap-1">
-              {selectedPathNames.map((name, i) => (
+              {selectedNodePath.split('/').map((name, i) => (
                 <React.Fragment key={i}>
                   {i > 0 && <ChevronRight className="h-3 w-3 text-blue-400" />}
                   <span className="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 text-xs font-medium">
@@ -666,7 +705,7 @@ export default function PracticeView() {
             ? `开始练习 (${Math.min(questionCount, availableQuestions.length)} 题)`
             : '请先选择有题目的知识点'}
         </Button>
-        {availableQuestions.length === 0 && selectedPath.length > 0 && (
+        {availableQuestions.length === 0 && selectedNodeId && (
           <p className="text-xs text-center text-orange-500">
             该知识点下暂无题目，请选择其他知识点或前往题库添加题目
           </p>
@@ -689,7 +728,7 @@ export default function PracticeView() {
             返回选题
           </Button>
           <span className="text-sm font-medium text-gray-600">
-            {selectedPathNames.join(' / ')}
+            {selectedNodePath || '已选择知识点'}
           </span>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-xs">
@@ -770,7 +809,7 @@ export default function PracticeView() {
         {/* Result Header */}
         <div className="p-6 text-center bg-gradient-to-b from-blue-50 to-white dark:from-blue-950/30 dark:to-gray-900 shrink-0">
           <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200">练习完成</h2>
-          <p className="text-sm text-gray-500 mt-1">{selectedPathNames.join(' / ')}</p>
+          <p className="text-sm text-gray-500 mt-1">{selectedNodePath || ''}</p>
           <div className="mt-3 flex items-center justify-center gap-6">
             <div className="text-center">
               <p className="text-3xl font-bold text-green-600">{correctCount}</p>

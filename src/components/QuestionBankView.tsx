@@ -18,10 +18,10 @@ import {
   ChevronDown,
   Plus,
   FileJson,
-  CheckCircle2,
-  XCircle,
   Filter,
   Download,
+  X,
+  FolderOpen,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,21 +29,60 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-// --- Knowledge Tree Filter (for filtering by knowledge path) ---
+// Build a path name map: nodeId -> path name like "行测/言语理解与表达/逻辑填空"
+function buildPathNameMap(
+  node: KnowledgeNode,
+  parentPath: string,
+  map: Record<string, string>,
+) {
+  const currentPath = parentPath ? `${parentPath}/${node.name}` : node.name;
+  map[node.id] = currentPath;
+  for (const child of node.children) {
+    buildPathNameMap(child, currentPath, map);
+  }
+}
+
+// Get all descendant IDs of a node (including itself)
+function getDescendantIds(node: KnowledgeNode): string[] {
+  const ids = [node.id];
+  for (const child of node.children) {
+    ids.push(...getDescendantIds(child));
+  }
+  return ids;
+}
+
+// Find a node by ID
+function findNodeById(
+  root: KnowledgeNode,
+  id: string,
+): KnowledgeNode | null {
+  if (root.id === id) return root;
+  for (const child of root.children) {
+    const found = findNodeById(child, id);
+    if (found) return found;
+  }
+  return null;
+}
+
+// --- Knowledge Tree Filter ---
 function KnowledgeFilter({
   mindMap,
-  selectedPath,
-  onPathChange,
+  selectedNodeId,
+  onNodeSelect,
   questionCounts,
 }: {
   mindMap: KnowledgeNode;
-  selectedPath: string[];
-  onPathChange: (path: string[]) => void;
+  selectedNodeId: string | null;
+  onNodeSelect: (id: string | null) => void;
   questionCounts: Record<string, number>;
 }) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => {
     const s = new Set<string>();
     s.add(mindMap.id);
+    // Auto-expand first level
+    for (const child of mindMap.children) {
+      s.add(child.id);
+    }
     return s;
   });
 
@@ -58,7 +97,7 @@ function KnowledgeFilter({
 
   function renderNode(node: KnowledgeNode, depth: number) {
     const isExpanded = expandedNodes.has(node.id);
-    const isSelected = selectedPath[depth] === node.id;
+    const isSelected = selectedNodeId === node.id;
     const count = questionCounts[node.id] || 0;
 
     const typeIcons: Record<string, React.ElementType> = {
@@ -76,17 +115,23 @@ function KnowledgeFilter({
           className={cn(
             'w-full text-left flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm transition-colors',
             isSelected
-              ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-medium'
+              ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-medium ring-1 ring-blue-200'
               : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300',
           )}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
           onClick={() => {
-            onPathChange([...selectedPath.slice(0, depth), node.id]);
-            if (node.children.length > 0) toggleExpand(node.id);
+            onNodeSelect(isSelected ? null : node.id);
+            if (node.children.length > 0 && !isExpanded) toggleExpand(node.id);
           }}
         >
           {node.children.length > 0 ? (
-            <span className="text-gray-400 text-xs w-4 shrink-0">
+            <span
+              className="text-gray-400 text-xs w-4 shrink-0 cursor-pointer hover:text-gray-600"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleExpand(node.id);
+              }}
+            >
               {isExpanded ? '▼' : '▶'}
             </span>
           ) : (
@@ -113,8 +158,28 @@ function KnowledgeFilter({
   }
 
   return (
-    <ScrollArea className="h-[300px]">
+    <ScrollArea className="h-full">
       <div className="py-1">
+        {/* "All" button */}
+        <button
+          type="button"
+          className={cn(
+            'w-full text-left flex items-center gap-1.5 px-2 py-1.5 rounded-md text-sm transition-colors',
+            selectedNodeId === null
+              ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-medium'
+              : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300',
+          )}
+          onClick={() => onNodeSelect(null)}
+        >
+          <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate flex-1">全部题目</span>
+          <Badge
+            variant="secondary"
+            className="text-[10px] h-5 px-1.5 shrink-0 bg-gray-100 text-gray-600 font-semibold"
+          >
+            {questionCounts[mindMap.id] || 0}
+          </Badge>
+        </button>
         {renderNode(mindMap, 0)}
       </div>
     </ScrollArea>
@@ -146,7 +211,7 @@ function QuestionDetailCard({
           </p>
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
             <Badge variant="outline" className="text-[10px] h-5">
-              {item.linkedAngleName}
+              {item.linkedAngleName || item.knowledgePath}
             </Badge>
             <Badge
               variant="secondary"
@@ -198,9 +263,11 @@ function QuestionDetailCard({
           <div className="text-xs text-gray-500">
             正确答案：<span className="text-green-600 font-medium">{item.correctAnswer}</span>
           </div>
-          <div className="text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 rounded p-2">
-            {item.explanation}
-          </div>
+          {item.explanation && (
+            <div className="text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 rounded p-2">
+              {item.explanation}
+            </div>
+          )}
           <div className="text-[10px] text-gray-400">
             路径：{item.knowledgePath} · 添加时间：{item.createdAt}
           </div>
@@ -240,7 +307,6 @@ function AddQuestionForm({
       const angle = angles.find((a) => a.id === id);
       if (angle) {
         setSelectedAngleName(angle.name);
-        // Build path
         function findPath(node: KnowledgeNode, target: string, path: string[]): string[] | null {
           if (node.id === target) return [...path, node.name];
           for (const child of node.children) {
@@ -375,52 +441,73 @@ export default function QuestionBankView() {
   const { state, dispatch } = useAppState();
   const bank = state.questionBank ?? [];
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPath, setSelectedPath] = useState<string[]>([]);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Count questions under each node
+  // Build path name map for matching
+  const pathNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    buildPathNameMap(state.mindMap, '', map);
+    return map;
+  }, [state.mindMap]);
+
+  // Count questions under each node (using both linkedAngleId and knowledgePath matching)
   const questionCounts = useMemo(() => {
     const counts: Record<string, number> = {};
+
     function countForNode(node: KnowledgeNode): number {
-      let total = bank.filter((q: QuestionBankItem) => q.linkedAngleId === node.id).length;
+      const nodePath = pathNameMap[node.id] || '';
+      // Match by linkedAngleId (direct match) or by knowledgePath prefix
+      let total = bank.filter((q: QuestionBankItem) => {
+        if (q.linkedAngleId === node.id) return true;
+        // Also match by knowledgePath: if question's path starts with this node's path
+        if (nodePath && q.knowledgePath) {
+          return q.knowledgePath === nodePath || q.knowledgePath.startsWith(nodePath + '/');
+        }
+        return false;
+      }).length;
+      // But don't double-count - the above already includes children's questions
+      // because knowledgePath of children starts with parent path.
+      // We actually want: questions DIRECTLY under this node, not under children.
+      // So let's count only directly linked questions, then recurse for children.
+
+      // Actually for the tree badge, we want TOTAL count including children.
+      // Let's use a different approach: just count linkedAngleId matches
+      // plus all children's counts.
+      total = bank.filter((q: QuestionBankItem) => q.linkedAngleId === node.id).length;
       for (const child of node.children) {
         total += countForNode(child);
       }
       counts[node.id] = total;
       return total;
     }
+
     countForNode(state.mindMap);
     return counts;
   }, [state.mindMap, bank]);
 
-  // Filter questions
+  // Filter questions based on selected node, source, and search
   const filteredQuestions = useMemo(() => {
     let result = [...bank];
 
-    // Filter by knowledge path
-    if (selectedPath.length > 0) {
-      const selectedNodeId = selectedPath[selectedPath.length - 1];
-      function getDescendantIds(node: KnowledgeNode): string[] {
-        const ids = [node.id];
-        for (const child of node.children) {
-          ids.push(...getDescendantIds(child));
-        }
-        return ids;
-      }
-      function findNode(root: KnowledgeNode, id: string): KnowledgeNode | null {
-        if (root.id === id) return root;
-        for (const child of root.children) {
-          const found = findNode(child, id);
-          if (found) return found;
-        }
-        return null;
-      }
-      const selectedNode = findNode(state.mindMap, selectedNodeId);
+    // Filter by selected knowledge tree node
+    if (selectedNodeId) {
+      const selectedNode = findNodeById(state.mindMap, selectedNodeId);
       if (selectedNode) {
         const descendantIds = new Set(getDescendantIds(selectedNode));
-        result = result.filter((q: QuestionBankItem) => descendantIds.has(q.linkedAngleId));
+        const nodePath = pathNameMap[selectedNodeId] || '';
+
+        result = result.filter((q: QuestionBankItem) => {
+          // Match by linkedAngleId being a descendant of selected node
+          if (q.linkedAngleId && descendantIds.has(q.linkedAngleId)) return true;
+          // Fallback: match by knowledgePath prefix
+          if (nodePath && q.knowledgePath) {
+            return q.knowledgePath === nodePath || q.knowledgePath.startsWith(nodePath + '/');
+          }
+          return false;
+        });
       }
     }
 
@@ -436,12 +523,18 @@ export default function QuestionBankView() {
         (q: QuestionBankItem) =>
           q.content.toLowerCase().includes(query) ||
           q.knowledgePath.toLowerCase().includes(query) ||
-          q.linkedAngleName.toLowerCase().includes(query),
+          (q.linkedAngleName || '').toLowerCase().includes(query),
       );
     }
 
     return result;
-  }, [bank, selectedPath, sourceFilter, searchQuery, state.mindMap]);
+  }, [bank, selectedNodeId, sourceFilter, searchQuery, state.mindMap, pathNameMap]);
+
+  // Selected node display name
+  const selectedNodeName = useMemo(() => {
+    if (!selectedNodeId) return null;
+    return pathNameMap[selectedNodeId] || null;
+  }, [selectedNodeId, pathNameMap]);
 
   const handleDelete = useCallback(
     (id: string) => {
@@ -474,7 +567,6 @@ export default function QuestionBankView() {
           const text = evt.target?.result as string;
           const data = JSON.parse(text);
 
-          // Support both array format and object with questions field
           let items: QuestionBankItem[] = [];
           if (Array.isArray(data)) {
             items = data;
@@ -482,18 +574,16 @@ export default function QuestionBankView() {
             items = data.questions;
           }
 
-          // Validate and add
           const validItems = items.filter(
             (item: QuestionBankItem) =>
-              item.content && item.options && item.correctAnswer && item.linkedAngleId,
+              item.content && item.options && item.correctAnswer,
           );
 
           if (validItems.length === 0) {
-            alert('未找到有效的题目数据。请确保JSON格式正确，包含 content、options、correctAnswer、linkedAngleId 字段。');
+            alert('未找到有效的题目数据。请确保JSON格式正确，包含 content、options、correctAnswer 字段。');
             return;
           }
 
-          // Add source tag and ensure IDs
           const tagged = validItems.map((item: QuestionBankItem) => ({
             ...item,
             id: item.id || createId(),
@@ -508,7 +598,6 @@ export default function QuestionBankView() {
         }
       };
       reader.readAsText(file);
-      // Reset file input
       e.target.value = '';
     },
     [dispatch],
@@ -534,24 +623,6 @@ export default function QuestionBankView() {
     }
     return stats;
   }, [bank]);
-
-  const selectedPathNames = useMemo(() => {
-    const names: string[] = [];
-    function findPath(node: KnowledgeNode, depth: number): boolean {
-      if (selectedPath[depth] === node.id) {
-        names.push(node.name);
-        if (depth + 1 < selectedPath.length) {
-          for (const child of node.children) {
-            if (findPath(child, depth + 1)) return true;
-          }
-        }
-        return true;
-      }
-      return false;
-    }
-    if (selectedPath.length > 0) findPath(state.mindMap, 0);
-    return names;
-  }, [selectedPath, state.mindMap]);
 
   return (
     <div className="flex flex-col h-full">
@@ -647,23 +718,20 @@ export default function QuestionBankView() {
         </div>
 
         {/* Selected path display */}
-        {selectedPathNames.length > 0 && (
+        {selectedNodeName && (
           <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/30 rounded-md px-3 py-1.5">
             <Filter className="h-3.5 w-3.5 text-blue-500" />
             <span className="text-xs text-blue-600 dark:text-blue-400">筛选：</span>
-            {selectedPathNames.map((name, i) => (
-              <React.Fragment key={i}>
-                {i > 0 && <ChevronRight className="h-3 w-3 text-blue-400" />}
-                <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{name}</span>
-              </React.Fragment>
-            ))}
+            <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+              {selectedNodeName}
+            </span>
             <span className="text-xs text-blue-500 ml-1">({filteredQuestions.length}题)</span>
             <button
               type="button"
-              className="ml-auto text-xs text-blue-500 hover:text-blue-700"
-              onClick={() => setSelectedPath([])}
+              className="ml-auto text-blue-500 hover:text-blue-700"
+              onClick={() => setSelectedNodeId(null)}
             >
-              清除
+              <X className="h-3.5 w-3.5" />
             </button>
           </div>
         )}
@@ -676,12 +744,14 @@ export default function QuestionBankView() {
           <div className="px-3 py-2 border-b shrink-0">
             <p className="text-xs font-medium text-gray-500">按知识点筛选</p>
           </div>
-          <KnowledgeFilter
-            mindMap={state.mindMap}
-            selectedPath={selectedPath}
-            onPathChange={setSelectedPath}
-            questionCounts={questionCounts}
-          />
+          <div className="flex-1 overflow-auto">
+            <KnowledgeFilter
+              mindMap={state.mindMap}
+              selectedNodeId={selectedNodeId}
+              onNodeSelect={setSelectedNodeId}
+              questionCounts={questionCounts}
+            />
+          </div>
         </div>
 
         {/* Right: Question list */}
@@ -695,11 +765,26 @@ export default function QuestionBankView() {
                     ? '题库暂无题目，点击"手动添加"或"上传JSON"添加题目'
                     : '没有匹配的题目，请调整筛选条件'}
                 </p>
+                {selectedNodeId && (
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => setSelectedNodeId(null)}
+                  >
+                    清除筛选查看全部
+                  </Button>
+                )}
               </div>
             ) : (
-              filteredQuestions.map((q: QuestionBankItem) => (
-                <QuestionDetailCard key={q.id} item={q} onDelete={handleDelete} />
-              ))
+              <>
+                <p className="text-xs text-gray-400 mb-2">
+                  显示 {filteredQuestions.length} / {bank.length} 题
+                </p>
+                {filteredQuestions.map((q: QuestionBankItem) => (
+                  <QuestionDetailCard key={q.id} item={q} onDelete={handleDelete} />
+                ))}
+              </>
             )}
           </div>
         </ScrollArea>
