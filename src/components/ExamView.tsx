@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import type { ExamResult } from '@/lib/types';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import type { ExamResult, KnowledgeNode } from '@/lib/types';
 import { useAppState } from '@/lib/store';
 import { createId } from '@/lib/sample-data';
+import { getWrongColor } from '@/lib/color-utils';
 import { cn } from '@/lib/utils';
 import {
   CheckCircle2,
@@ -14,6 +15,11 @@ import {
   Trophy,
   AlertTriangle,
   BookOpen,
+  Brain,
+  Target,
+  Lightbulb,
+  ArrowLeft,
+  Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -34,6 +40,81 @@ import {
 
 type ExamPhase = 'select' | 'running' | 'result';
 
+// --- Result Mind Map ---
+function ExamResultMindMap({
+  node,
+  depth,
+  wrongAngleIds,
+  litUpIds,
+}: {
+  node: KnowledgeNode;
+  depth: number;
+  wrongAngleIds: Set<string>;
+  litUpIds: Set<string>;
+}) {
+  const [expanded, setExpanded] = useState(true);
+
+  function hasRelevantDescendant(n: KnowledgeNode): boolean {
+    if (wrongAngleIds.has(n.id) || litUpIds.has(n.id)) return true;
+    return n.children.some(hasRelevantDescendant);
+  }
+
+  const isWrong = wrongAngleIds.has(node.id);
+  const isLitUp = litUpIds.has(node.id);
+  const hasRelevant = isWrong || isLitUp || hasRelevantDescendant(node);
+
+  if (depth > 0 && !hasRelevant) return null;
+
+  const typeIcons: Record<string, React.ElementType> = {
+    subject: BookOpen,
+    knowledge: Brain,
+    subknowledge: Target,
+    angle: Lightbulb,
+  };
+  const Icon = typeIcons[node.type] || BookOpen;
+
+  const wrongColor = isWrong && node.type === 'angle' ? getWrongColor(1) : null;
+
+  return (
+    <div style={{ marginLeft: depth > 0 ? '16px' : '0' }}>
+      <button
+        type="button"
+        className={cn(
+          'flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-colors w-full text-left',
+          isLitUp && !isWrong && 'bg-yellow-100 dark:bg-yellow-900 border border-yellow-300',
+        )}
+        style={wrongColor ? { backgroundColor: wrongColor } : undefined}
+        onClick={() => setExpanded(!expanded)}
+      >
+        {node.children.length > 0 && (
+          <span className="text-[10px] text-gray-400">{expanded ? '▼' : '▶'}</span>
+        )}
+        <Icon className="h-3 w-3 shrink-0" />
+        <span className="truncate font-medium">{node.name}</span>
+        {isWrong && node.type === 'angle' && (
+          <Badge className="ml-auto text-[9px] h-4 px-1 bg-red-500 text-white">错</Badge>
+        )}
+        {isLitUp && !isWrong && (
+          <Badge className="ml-auto text-[9px] h-4 px-1 bg-yellow-500 text-white">对</Badge>
+        )}
+      </button>
+      {expanded && node.children.length > 0 && (
+        <div className="mt-0.5">
+          {node.children.map((child) => (
+            <ExamResultMindMap
+              key={child.id}
+              node={child}
+              depth={depth + 1}
+              wrongAngleIds={wrongAngleIds}
+              litUpIds={litUpIds}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ExamView() {
   const { state, addAnswerRecord, dispatch } = useAppState();
   const [phase, setPhase] = useState<ExamPhase>('select');
@@ -43,6 +124,7 @@ export default function ExamView() {
   const [examResult, setExamResult] = useState<ExamResult | null>(null);
   const [startTime, setStartTime] = useState(0);
   const [elapsed, setElapsed] = useState(0);
+  const [showMindMap, setShowMindMap] = useState(true);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const selectedSet = state.practiceSets.find((ps) => ps.id === selectedSetId);
@@ -63,7 +145,6 @@ export default function ExamView() {
     };
   }, [phase, startTime]);
 
-  // Use refs to hold latest values for stable callbacks
   const selectedSetRef = useRef(selectedSet);
   selectedSetRef.current = selectedSet;
   const answersRef = useRef(answers);
@@ -102,7 +183,6 @@ export default function ExamView() {
       } else {
         wrongQuestionIds.push(q.id);
       }
-      // Record each answer
       addAnswerRecord({
         questionId: q.id,
         practiceSetId: currentSet.id,
@@ -131,6 +211,47 @@ export default function ExamView() {
     ? selectedSet.questions.filter((q) => answers[q.id] !== undefined).length
     : 0;
 
+  // Compute mind map coloring for result
+  const resultMindMapData = useMemo(() => {
+    if (!examResult || !selectedSet) return null;
+
+    const wrongAngleIds = new Set<string>();
+    const litUpIds = new Set<string>();
+
+    for (const q of selectedSet.questions) {
+      const userAnswer = examResult.answers[q.id];
+      if (userAnswer === q.correctAnswer) {
+        litUpIds.add(q.linkedAngleId);
+      } else {
+        wrongAngleIds.add(q.linkedAngleId);
+      }
+    }
+
+    // Propagate lit-up
+    function propagateLitUp(node: KnowledgeNode): boolean {
+      let hasLit = litUpIds.has(node.id);
+      for (const child of node.children) {
+        if (propagateLitUp(child)) hasLit = true;
+      }
+      if (hasLit) litUpIds.add(node.id);
+      return hasLit;
+    }
+    propagateLitUp(state.mindMap);
+
+    // Propagate wrong
+    function propagateWrong(node: KnowledgeNode): boolean {
+      let hasWrong = wrongAngleIds.has(node.id);
+      for (const child of node.children) {
+        if (propagateWrong(child)) hasWrong = true;
+      }
+      if (hasWrong) wrongAngleIds.add(node.id);
+      return hasWrong;
+    }
+    propagateWrong(state.mindMap);
+
+    return { wrongAngleIds, litUpIds };
+  }, [examResult, selectedSet, state.mindMap]);
+
   // --- Select Phase ---
   if (phase === 'select') {
     return (
@@ -142,12 +263,12 @@ export default function ExamView() {
         {state.practiceSets.length === 0 ? (
           <Card className="p-8 text-center">
             <BookOpen className="h-12 w-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-            <p className="text-sm text-gray-500 dark:text-gray-400">暂无套题，请先导入套题</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">暂无套题，请先在数据管理中导入套题</p>
           </Card>
         ) : (
           <div className="space-y-3">
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              选择一套题目开始考试，所有题目完成后提交试卷。错误题目将触发对应知识点角度区域的颜色变化。
+              选择一套题目开始考试，完成后提交试卷。错误题目将触发对应知识点角度区域的颜色变化。
             </p>
             {state.practiceSets.map((ps) => {
               const isSelected = selectedSetId === ps.id;
@@ -360,7 +481,7 @@ export default function ExamView() {
     return (
       <div className="flex flex-col h-full">
         {/* Result Header */}
-        <div className="p-6 text-center bg-gradient-to-b from-blue-50 to-white dark:from-blue-950/30 dark:to-gray-900">
+        <div className="p-6 text-center bg-gradient-to-b from-blue-50 to-white dark:from-blue-950/30 dark:to-gray-900 shrink-0">
           <Trophy
             className={cn(
               'h-16 w-16 mx-auto mb-3',
@@ -376,96 +497,135 @@ export default function ExamView() {
           </h2>
           <div className="mt-3 flex items-center justify-center gap-4">
             <div className="text-center">
-              <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-                {examResult.score}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">正确</p>
+              <p className="text-3xl font-bold text-green-600">{examResult.score}</p>
+              <p className="text-xs text-gray-500">正确</p>
             </div>
             <div className="text-center">
               <p className="text-3xl font-bold text-red-500">
                 {examResult.totalQuestions - examResult.score}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">错误</p>
+              <p className="text-xs text-gray-500">错误</p>
             </div>
             <div className="text-center">
-              <p className="text-3xl font-bold text-gray-600 dark:text-gray-400">
-                {examResult.totalQuestions}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">总题数</p>
+              <p className="text-3xl font-bold text-gray-600">{examResult.totalQuestions}</p>
+              <p className="text-xs text-gray-500">总题数</p>
             </div>
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+          <p className="text-xs text-gray-500 mt-2">
             用时 {formatTime(elapsed)} · 正确率 {scorePercentage.toFixed(1)}%
           </p>
         </div>
 
-        {/* Wrong questions detail */}
+        {/* Mind Map + Wrong questions */}
         <ScrollArea className="flex-1 p-4">
-          <div className="max-w-2xl mx-auto space-y-3">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-              <XCircle className="h-4 w-4 text-red-500" />
-              错误题目详解（知识点颜色已更新）
-            </h3>
+          <div className="max-w-3xl mx-auto space-y-4">
+            {/* Toggle Mind Map */}
+            <Card className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                  <Eye className="h-4 w-4" />
+                  知识点变色图
+                </h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowMindMap(!showMindMap)}
+                >
+                  {showMindMap ? '收起' : '展开'}
+                </Button>
+              </div>
+              {showMindMap && resultMindMapData && (
+                <div className="border rounded-lg p-3 bg-gray-50 dark:bg-gray-900">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center gap-1">
+                      <div className="w-4 h-3 rounded bg-yellow-200 border border-yellow-400" />
+                      <span className="text-[10px] text-gray-500">做对点亮</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-4 h-3 rounded bg-red-200 border border-red-400" />
+                      <span className="text-[10px] text-gray-500">做错变色</span>
+                    </div>
+                  </div>
+                  <ExamResultMindMap
+                    node={state.mindMap}
+                    depth={0}
+                    wrongAngleIds={resultMindMapData.wrongAngleIds}
+                    litUpIds={resultMindMapData.litUpIds}
+                  />
+                </div>
+              )}
+            </Card>
 
-            {examResult.wrongQuestionIds.length === 0 ? (
-              <Card className="p-4 text-center">
-                <CheckCircle2 className="h-8 w-8 mx-auto text-green-500 mb-2" />
-                <p className="text-sm text-green-600 dark:text-green-400">全部正确，太棒了！</p>
-              </Card>
-            ) : (
-              selectedSet.questions
-                .filter((q) => examResult.wrongQuestionIds.includes(q.id))
-                .map((q) => (
-                  <Card key={q.id} className="p-4 space-y-2 border-red-200 dark:border-red-800">
-                    <div className="flex items-center gap-2">
-                      <XCircle className="h-4 w-4 text-red-500 shrink-0" />
-                      <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed">
-                        {q.content}
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1.5 ml-6">
-                      {q.options.map((opt) => (
-                        <div
-                          key={opt.label}
-                          className={cn(
-                            'text-xs px-2 py-1.5 rounded',
-                            opt.label === q.correctAnswer
-                              ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium'
-                              : opt.label === examResult.answers[q.id]
-                                ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 line-through'
-                                : 'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400',
-                          )}
-                        >
-                          {opt.label}. {opt.text}
+            {/* Wrong questions detail */}
+            <Card className="p-4">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2 mb-3">
+                <XCircle className="h-4 w-4 text-red-500" />
+                错误题目详解
+              </h3>
+
+              {examResult.wrongQuestionIds.length === 0 ? (
+                <div className="text-center py-4">
+                  <CheckCircle2 className="h-8 w-8 mx-auto text-green-500 mb-2" />
+                  <p className="text-sm text-green-600 dark:text-green-400">全部正确，太棒了！</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {selectedSet.questions
+                    .filter((q) => examResult.wrongQuestionIds.includes(q.id))
+                    .map((q) => (
+                      <div key={q.id} className="p-3 rounded-lg border border-red-200 dark:border-red-800 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <XCircle className="h-4 w-4 text-red-500 shrink-0" />
+                          <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-line">
+                            {q.content}
+                          </p>
                         </div>
-                      ))}
-                    </div>
-                    <div className="ml-6 space-y-1">
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        你的答案：
-                        <span className="text-red-500 font-medium">{examResult.answers[q.id]}</span>
-                        {' | '}正确答案：
-                        <span className="text-green-500 font-medium">{q.correctAnswer}</span>
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        关联考点：
-                        <Badge variant="outline" className="text-[10px] ml-1">
-                          {q.linkedAngleName}
-                        </Badge>
-                      </p>
-                      <p className="text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 rounded p-2">
-                        {q.explanation}
-                      </p>
-                    </div>
-                  </Card>
-                ))
-            )}
+                        <div className="grid grid-cols-2 gap-1.5 ml-6">
+                          {q.options.map((opt) => (
+                            <div
+                              key={opt.label}
+                              className={cn(
+                                'text-xs px-2 py-1.5 rounded',
+                                opt.label === q.correctAnswer
+                                  ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium'
+                                  : opt.label === examResult.answers[q.id]
+                                    ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 line-through'
+                                    : 'bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400',
+                              )}
+                            >
+                              {opt.label}. {opt.text}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="ml-6 space-y-1">
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            你的答案：
+                            <span className="text-red-500 font-medium">{examResult.answers[q.id]}</span>
+                            {' | '}正确答案：
+                            <span className="text-green-500 font-medium">{q.correctAnswer}</span>
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            关联考点：
+                            <Badge variant="outline" className="text-[10px] ml-1">
+                              {q.linkedAngleName}
+                            </Badge>
+                          </p>
+                          <p className="text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 rounded p-2">
+                            {q.explanation}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </Card>
           </div>
         </ScrollArea>
 
         {/* Actions */}
         <div className="border-t bg-white dark:bg-gray-900 p-4 flex justify-center gap-3 shrink-0">
           <Button variant="outline" onClick={() => setPhase('select')}>
+            <ArrowLeft className="h-4 w-4 mr-1" />
             返回选择
           </Button>
           <Button
@@ -479,7 +639,7 @@ export default function ExamView() {
             }}
           >
             <RotateCcw className="h-4 w-4 mr-1" />
-            重新练习
+            重新考试
           </Button>
         </div>
       </div>

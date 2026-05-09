@@ -27,6 +27,25 @@ export interface QuestionOption {
   text: string;
 }
 
+/** 题库中的题目条目 - 所有题目统一存储 */
+export interface QuestionBankItem {
+  id: string;
+  content: string;
+  options: QuestionOption[];
+  correctAnswer: string;
+  explanation: string;
+  /** 关联的出题角度ID */
+  linkedAngleId: string;
+  /** 关联的出题角度名称 */
+  linkedAngleName: string;
+  /** 知识点路径，如 "行测/言语理解与表达/片段阅读/主旨概括题" */
+  knowledgePath: string;
+  /** 来源：mindmap-inline / practice / exam / upload */
+  source: string;
+  /** 创建时间 */
+  createdAt: string;
+}
+
 export interface PracticeSet {
   id: string;
   name: string;

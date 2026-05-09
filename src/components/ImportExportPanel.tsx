@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useMemo, useRef } from 'react';
-import type { KnowledgeNode, PracticeSet, PracticeQuestion, NodeType } from '@/lib/types';
+import type { KnowledgeNode, PracticeSet, PracticeQuestion, QuestionBankItem, NodeType } from '@/lib/types';
 import { useAppState } from '@/lib/store';
 import { createId, SAMPLE_MIND_MAP } from '@/lib/sample-data';
 import { Upload, Download, FileText, Save, RotateCcw } from 'lucide-react';
@@ -15,6 +15,20 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+
+// --- Find angle path in mind map ---
+function findAnglePath(root: KnowledgeNode, angleId: string): string | null {
+  function traverse(node: KnowledgeNode, parts: string[]): string | null {
+    const currentPath = [...parts, node.name];
+    if (node.id === angleId) return currentPath.join(' / ');
+    for (const child of node.children) {
+      const found = traverse(child, currentPath);
+      if (found) return found;
+    }
+    return null;
+  }
+  return traverse(root, []);
+}
 
 // --- Mind Map Text Format Parser ---
 // Supports: name, {content:...}, {@annotation}, {[img]url}
@@ -393,6 +407,24 @@ export function ImportExportPanel() {
       const parsed = parsePracticeSetText(practiceText, state.mindMap);
       if (parsed.questions.length > 0) {
         dispatch({ type: 'ADD_PRACTICE_SET', payload: parsed });
+        // Also add questions to question bank
+        const bankItems: QuestionBankItem[] = parsed.questions.map((q) => {
+          // Find knowledge path for this angle
+          const anglePath = findAnglePath(state.mindMap, q.linkedAngleId);
+          return {
+            id: `qb_from_ps_${q.id}`,
+            content: q.content,
+            options: q.options,
+            correctAnswer: q.correctAnswer,
+            explanation: q.explanation,
+            linkedAngleId: q.linkedAngleId,
+            linkedAngleName: q.linkedAngleName,
+            knowledgePath: anglePath || q.linkedAngleName,
+            source: 'upload',
+            createdAt: new Date().toISOString(),
+          };
+        });
+        dispatch({ type: 'ADD_QUESTION_BANK_ITEMS', payload: bankItems });
         setPracticeText('');
         setPracticeDialogOpen(false);
       } else {
@@ -408,6 +440,7 @@ export function ImportExportPanel() {
       mindMap: state.mindMap,
       practiceSets: state.practiceSets,
       answerRecords: state.answerRecords,
+      questionBank: state.questionBank,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -432,7 +465,24 @@ export function ImportExportPanel() {
           if (data.practiceSets) {
             for (const ps of data.practiceSets) {
               dispatch({ type: 'ADD_PRACTICE_SET', payload: ps });
+              // Add questions to bank
+              const bankItems: QuestionBankItem[] = ps.questions.map((q: PracticeQuestion) => ({
+                id: `qb_json_${q.id}_${Date.now()}`,
+                content: q.content,
+                options: q.options,
+                correctAnswer: q.correctAnswer,
+                explanation: q.explanation,
+                linkedAngleId: q.linkedAngleId,
+                linkedAngleName: q.linkedAngleName,
+                knowledgePath: findAnglePath(state.mindMap, q.linkedAngleId) || q.linkedAngleName,
+                source: 'upload',
+                createdAt: new Date().toISOString(),
+              }));
+              dispatch({ type: 'ADD_QUESTION_BANK_ITEMS', payload: bankItems });
             }
+          }
+          if (data.questionBank && Array.isArray(data.questionBank)) {
+            dispatch({ type: 'ADD_QUESTION_BANK_ITEMS', payload: data.questionBank });
           }
         } catch {
           alert('JSON 解析失败');
