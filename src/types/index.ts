@@ -1,0 +1,113 @@
+export type NodeType = 'subject' | 'knowledge' | 'subknowledge' | 'angle';
+
+export interface KnowledgeNodeRecord {
+  id: string;
+  user_id: string;
+  name: string;
+  parent_id: string | null;
+  pos_x: number;
+  pos_y: number;
+  ps_score: number;
+  last_practiced_at: string | null;
+  color_tag: string;
+  node_type: NodeType;
+  content?: string;
+  annotation?: string;
+  updated_at: string;
+}
+
+export interface PracticeRecord {
+  id: string;
+  user_id: string;
+  question_id: string;
+  is_correct: boolean;
+  answer_time: number;
+  source_node_ids: string[];
+  updated_at: string;
+}
+
+export interface PSHistoryRecord {
+  id: string;
+  node_id: string;
+  ps_score: number;
+  recorded_at: string;
+  user_id: string;
+}
+
+export interface Snapshot {
+  id: string;
+  created_at: string;
+  data: string;
+}
+
+export interface BackupConfig {
+  id: string;
+  server_url: string | null;
+  last_sync_at: string | null;
+  auto_sync_enabled: boolean;
+}
+
+export interface Question {
+  id: string;
+  content: string;
+  options: QuestionOption[];
+  correctAnswer: string;
+  explanation: string;
+}
+
+export interface QuestionOption {
+  label: string;
+  text: string;
+}
+
+export interface QuestionBankItem {
+  id: string;
+  content: string;
+  options: QuestionOption[];
+  correctAnswer: string;
+  explanation: string;
+  linkedAngleId: string;
+  linkedAngleName: string;
+  knowledgePath: string;
+  source: string;
+  createdAt: string;
+}
+
+export interface AnswerRecord {
+  questionId: string;
+  practiceSetId: string;
+  selectedAnswer: string;
+  isCorrect: boolean;
+  timestamp: number;
+  linkedAngleId?: string;
+  source?: string;
+}
+
+export interface ExamResult {
+  id: string;
+  practiceSetId: string;
+  answers: Record<string, string>;
+  score: number;
+  totalQuestions: number;
+  completedAt: string;
+  wrongQuestionIds: string[];
+}
+
+export type AppTab = 'mindmap' | 'practice' | 'exam' | 'bank' | 'report' | 'center';
+
+export interface PSColorConfig {
+  background: string;
+  border: string;
+  text: string;
+  pulse: boolean;
+  opacity: number;
+}
+
+export interface GraphNode {
+  id: string;
+  data: KnowledgeNodeRecord;
+  children?: GraphNode[];
+  questions?: Question[];
+}
+
+export type PracticeMode = 'sequence' | 'random' | 'targeted' | 'exam';

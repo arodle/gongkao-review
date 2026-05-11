@@ -1,94 +1,155 @@
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
-import type { KnowledgeNode, AppTab } from '@/lib/types';
-import { AppProvider, useAppState } from '@/lib/store';
-import MindMapView from '@/components/MindMapView';
-import PracticeView from '@/components/PracticeView';
-import ExamView from '@/components/ExamView';
-import QuestionBankView from '@/components/QuestionBankView';
-import { ImportExportPanel, AngleMatcher } from '@/components/ImportExportPanel';
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useAppStore } from '@/lib/stores/appStore';
+import { KnowledgeGraph } from '@/components/KnowledgeGraph/KnowledgeGraph';
+import { PracticeSelector, PracticeSession } from '@/components/Practice/PracticeComponents';
+import { ReportDashboard } from '@/components/Report/ReportComponents';
+import { CenterDashboard } from '@/components/Center/CenterComponents';
 import { cn } from '@/lib/utils';
+import type { AppTab, QuestionBankItem, PracticeMode } from '@/types';
 import {
   GitBranch,
   BookOpen,
-  FileCheck,
-  Database,
-  Link2,
-  Menu,
-  X,
+  BarChart3,
+  User,
   Cloud,
   CloudOff,
   Loader2,
-  Download,
-  Upload,
+  CheckCircle2,
+  Wifi,
+  WifiOff,
+  Target,
+  Settings,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { Progress } from '@/components/ui/progress';
 
 function AppContent() {
-  const { state, dispatch, syncToCloud, syncFromCloud, cloudSyncStatus, lastSyncTime } = useAppState();
+  const {
+    isInitialized,
+    isOnline,
+    syncStatus,
+    nodes,
+    questionBank,
+    getWeakNodes,
+    getNodeStats,
+  } = useAppStore();
+
   const [activeTab, setActiveTab] = useState<AppTab>('mindmap');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarPanel, setSidebarPanel] = useState<'data' | 'match'>('data');
+  const [practiceMode, setPracticeMode] = useState<PracticeMode | null>(null);
+  const [isPracticeActive, setIsPracticeActive] = useState(false);
+
+  useEffect(() => {
+    const handleOnline = () => useAppStore.getState().setOnlineStatus(true);
+    const handleOffline = () => useAppStore.getState().setOnlineStatus(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const weakNodes = getWeakNodes();
+  const weakCount = weakNodes.length;
 
   const tabs: Array<{ id: AppTab; label: string; icon: React.ElementType }> = [
-    { id: 'mindmap', label: '思维导图', icon: GitBranch },
-    { id: 'practice', label: '真题练习', icon: BookOpen },
-    { id: 'exam', label: '套卷模式', icon: FileCheck },
-    { id: 'bank', label: '题库', icon: Database },
+    { id: 'mindmap', label: '知识导图', icon: GitBranch },
+    { id: 'practice', label: '智能练习', icon: BookOpen },
+    { id: 'report', label: '数据报告', icon: BarChart3 },
+    { id: 'center', label: '个人中心', icon: User },
   ];
 
-  const handleUpdatePracticeSet = useCallback(
-    (ps: import('@/lib/types').PracticeSet) => {
-      dispatch({ type: 'UPDATE_PRACTICE_SET', payload: ps });
-    },
-    [dispatch],
-  );
+  const handleStartPractice = (mode: 'sequence' | 'random' | 'targeted' | 'exam') => {
+    setPracticeMode(mode);
+    setIsPracticeActive(true);
+  };
 
-  // Count stats for header
-  const totalAngles = useMemo(() => {
-    let count = 0;
-    function traverse(node: KnowledgeNode): void {
-      if (node.type === 'angle') count++;
-      node.children.forEach(traverse);
-    }
-    traverse(state.mindMap);
-    return count;
-  }, [state.mindMap]);
+  const handlePracticeComplete = (results: any) => {
+    setIsPracticeActive(false);
+    setPracticeMode(null);
+  };
 
-  const totalQuestions = useMemo(() => {
-    let count = 0;
-    function traverse(node: KnowledgeNode): void {
-      count += node.questions.length;
-      node.children.forEach(traverse);
+  const getPracticeQuestions = useCallback((): QuestionBankItem[] => {
+    if (!practiceMode || practiceMode === 'exam') {
+      return questionBank;
     }
-    traverse(state.mindMap);
-    return count;
-  }, [state.mindMap]);
+
+    if (practiceMode === 'targeted') {
+      const weakIds = new Set(weakNodes.map(n => n.id));
+      return questionBank.filter(q => weakIds.has(q.linkedAngleId));
+    }
+
+    if (practiceMode === 'sequence') {
+      return [...questionBank].sort((a, b) => a.linkedAngleId.localeCompare(b.linkedAngleId));
+    }
+
+    return [...questionBank].sort(() => Math.random() - 0.5);
+  }, [practiceMode, questionBank, weakNodes]);
+
+  if (!isInitialized) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center space-y-4"
+        >
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg">
+            <GitBranch className="h-8 w-8 text-white" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold">正在加载知识图谱...</h2>
+            <div className="flex items-center justify-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>初始化数据</span>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="flex flex-col h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
       {/* Top Header */}
-      <header className="flex items-center justify-between px-4 py-2 border-b bg-white dark:bg-gray-900 shrink-0 shadow-sm">
+      <header className="flex items-center justify-between px-4 py-3 border-b bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shrink-0 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-              <GitBranch className="h-4 w-4 text-white" />
-            </div>
-            <div>
-              <h1 className="text-sm font-bold text-gray-800 dark:text-gray-200 leading-tight">
-                公考知识导图
-              </h1>
-              <p className="text-[10px] text-gray-400 dark:text-gray-500">知识点学习 · 真题练习</p>
-            </div>
+          <motion.div
+            initial={{ scale: 0.8 }}
+            animate={{ scale: 1 }}
+            className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20"
+          >
+            <GitBranch className="h-5 w-5 text-white" />
+          </motion.div>
+          <div>
+            <h1 className="text-base font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              智能公考学习平台
+            </h1>
+            <p className="text-[11px] text-muted-foreground">PS 掌握度 · 智能靶向</p>
           </div>
         </div>
 
         {/* Tab navigation */}
-        <nav className="flex items-center gap-1">
+        <nav className="flex items-center gap-1 bg-muted/50 rounded-xl p-1">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -96,13 +157,13 @@ function AppContent() {
               <button
                 key={tab.id}
                 type="button"
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
-                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800',
-                )}
                 onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
+                  isActive
+                    ? 'bg-white dark:bg-slate-800 text-primary shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-white/50 dark:hover:bg-slate-800/50',
+                )}
               >
                 <Icon className="h-4 w-4" />
                 <span className="hidden sm:inline">{tab.label}</span>
@@ -111,126 +172,214 @@ function AppContent() {
           })}
         </nav>
 
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-[10px] hidden md:flex">
-            {totalAngles} 考点 · {state.questionBank?.length ?? 0} 题库
-          </Badge>
-          {/* Cloud sync buttons */}
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs"
-              onClick={syncToCloud}
-              disabled={cloudSyncStatus === 'syncing'}
-              title="上传到云端"
-            >
-              {cloudSyncStatus === 'syncing' ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : cloudSyncStatus === 'success' ? (
-                <Cloud className="h-3.5 w-3.5 text-green-500" />
-              ) : cloudSyncStatus === 'error' ? (
-                <CloudOff className="h-3.5 w-3.5 text-red-500" />
-              ) : (
-                <Upload className="h-3.5 w-3.5" />
-              )}
-              <span className="hidden sm:inline ml-1">上传云端</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs"
-              onClick={syncFromCloud}
-              disabled={cloudSyncStatus === 'syncing'}
-              title="从云端下载"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline ml-1">云端恢复</span>
-            </Button>
-            {lastSyncTime && (
-              <span className="text-[10px] text-gray-400 hidden lg:inline">
-                {new Date(lastSyncTime).toLocaleString('zh-CN', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}
-              </span>
-            )}
+        <div className="flex items-center gap-3">
+          {/* Online status */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium',
+                  isOnline
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+                )}>
+                  {isOnline ? (
+                    <>
+                      <Wifi className="h-3 w-3" />
+                      <span className="hidden sm:inline">在线</span>
+                    </>
+                  ) : (
+                    <>
+                      <WifiOff className="h-3 w-3" />
+                      <span className="hidden sm:inline">离线可用</span>
+                    </>
+                  )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                {isOnline ? '已连接网络' : '离线模式，所有功能正常'}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          {/* Weak nodes indicator */}
+          {weakCount > 0 && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 border-red-200 bg-red-50 hover:bg-red-100 dark:border-red-800 dark:bg-red-900/20 dark:hover:bg-red-900/30"
+                    onClick={() => setActiveTab('mindmap')}
+                  >
+                    <Target className="h-4 w-4 text-red-500" />
+                    <span className="text-red-600 dark:text-red-400 font-semibold">{weakCount}</span>
+                    <span className="hidden md:inline text-red-600/70 dark:text-red-400/70">薄弱点</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  点击查看薄弱知识点
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          {/* Sync status */}
+          <div className={cn(
+            'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs',
+            syncStatus === 'syncing' && 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+            syncStatus === 'success' && 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+            syncStatus === 'error' && 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+            syncStatus === 'idle' && 'bg-muted text-muted-foreground',
+          )}>
+            {syncStatus === 'syncing' && <Loader2 className="h-3 w-3 animate-spin" />}
+            {syncStatus === 'success' && <CheckCircle2 className="h-3 w-3" />}
+            {syncStatus === 'error' && <CloudOff className="h-3 w-3" />}
+            {syncStatus === 'idle' && (isOnline ? <Cloud className="h-3 w-3" /> : <CloudOff className="h-3 w-3" />)}
+            <span className="hidden sm:inline">
+              {syncStatus === 'syncing' && '同步中'}
+              {syncStatus === 'success' && '已同步'}
+              {syncStatus === 'error' && '同步失败'}
+              {syncStatus === 'idle' && (isOnline ? '已连接' : '离线')}
+            </span>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="lg:hidden"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-          >
-            {sidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-          </Button>
         </div>
       </header>
 
       {/* Main content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Main view */}
-        <main className="flex-1 overflow-hidden">
-          {activeTab === 'mindmap' && <MindMapView showQuestions={true} />}
-          {activeTab === 'practice' && <PracticeView />}
-          {activeTab === 'exam' && <ExamView />}
-          {activeTab === 'bank' && <QuestionBankView />}
-        </main>
-
-        {/* Sidebar */}
-        <aside
-          className={cn(
-            'w-72 border-l bg-white dark:bg-gray-900 shrink-0 flex flex-col overflow-hidden transition-all duration-300',
-            sidebarOpen ? 'max-w-72' : 'max-w-0 lg:max-w-72',
+      <main className="flex-1 overflow-hidden">
+        <AnimatePresence mode="wait">
+          {activeTab === 'mindmap' && (
+            <motion.div
+              key="mindmap"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="h-full"
+            >
+              <KnowledgeGraph />
+            </motion.div>
           )}
-        >
-          {/* Sidebar tabs */}
-          <div className="flex border-b shrink-0">
-            <button
-              type="button"
-              className={cn(
-                'flex-1 px-3 py-2 text-xs font-medium transition-colors',
-                sidebarPanel === 'data'
-                  ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600'
-                  : 'text-gray-500 dark:text-gray-400',
-              )}
-              onClick={() => setSidebarPanel('data')}
-            >
-              <Link2 className="h-3.5 w-3.5 inline mr-1" />
-              数据管理
-            </button>
-            <button
-              type="button"
-              className={cn(
-                'flex-1 px-3 py-2 text-xs font-medium transition-colors',
-                sidebarPanel === 'match'
-                  ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600'
-                  : 'text-gray-500 dark:text-gray-400',
-              )}
-              onClick={() => setSidebarPanel('match')}
-            >
-              <Link2 className="h-3.5 w-3.5 inline mr-1" />
-              考点关联
-            </button>
-          </div>
 
-          <ScrollArea className="flex-1">
-            {sidebarPanel === 'data' && <ImportExportPanel />}
-            {sidebarPanel === 'match' && (
-              <AngleMatcher
-                practiceSets={state.practiceSets}
-                onUpdatePracticeSet={handleUpdatePracticeSet}
-                mindMap={state.mindMap}
-              />
-            )}
-          </ScrollArea>
-        </aside>
-      </div>
+          {activeTab === 'practice' && !isPracticeActive && (
+            <motion.div
+              key="practice-selector"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="h-full overflow-auto"
+            >
+              <div className="max-w-4xl mx-auto py-8">
+                <div className="text-center mb-8">
+                  <h2 className="text-2xl font-bold mb-2">选择练习模式</h2>
+                  <p className="text-muted-foreground">
+                    根据你的需求，选择合适的练习方式
+                  </p>
+                </div>
+
+                <div className="mb-8">
+                  <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-[#DC2626]" />
+                      <span>薄弱</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-[#EA580C]" />
+                      <span>需加强</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-[#CA8A04]" />
+                      <span>学习中</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-[#0891B2]" />
+                      <span>熟练</span>
+                    </div>
+                  </div>
+                </div>
+
+                <PracticeSelector onSelectMode={handleStartPractice} />
+
+                <div className="mt-8 p-4 rounded-xl bg-muted/50 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    当前题库共 <span className="font-semibold text-foreground">{questionBank.length}</span> 道题目
+                    {weakCount > 0 && (
+                      <>，其中 <span className="font-semibold text-red-500">{weakCount}</span> 个薄弱知识点</>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'practice' && isPracticeActive && practiceMode && (
+            <motion.div
+              key="practice-session"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="h-full overflow-auto"
+            >
+              <div className="max-w-2xl mx-auto py-8">
+                <PracticeSession
+                  questions={getPracticeQuestions()}
+                  mode={practiceMode}
+                  onComplete={handlePracticeComplete}
+                />
+              </div>
+            </motion.div>
+          )}
+
+          {activeTab === 'report' && (
+            <motion.div
+              key="report"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="h-full overflow-auto"
+            >
+              <ReportDashboard />
+            </motion.div>
+          )}
+
+          {activeTab === 'center' && (
+            <motion.div
+              key="center"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="h-full overflow-auto"
+            >
+              <CenterDashboard />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
+
+      {/* Bottom stats bar */}
+      <footer className="border-t bg-white/80 dark:bg-slate-900/80 backdrop-blur-md px-4 py-2 shrink-0">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex items-center gap-4">
+            <span>知识点：{nodes.length}</span>
+            <span>题库：{questionBank.length} 题</span>
+            <span>薄弱点：{weakCount}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span>本地优先 · 离线可用</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
 
 export default function HomePage() {
-  return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
-  );
+  const { initialize } = useAppStore();
+
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
+
+  return <AppContent />;
 }
