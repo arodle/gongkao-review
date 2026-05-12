@@ -63,8 +63,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       let nodes = await getNodesByUser();
 
       if (nodes.length === 0) {
-        await seedInitialData();
+        const result = await seedInitialData();
         nodes = await getNodesByUser();
+        set({ questionBank: result.questionBank });
+      } else {
+        const { SAMPLE_QUESTION_BANK } = await import('@/lib/sample-data');
+        set({ questionBank: SAMPLE_QUESTION_BANK });
       }
 
       const records = await db.practice_records.where('user_id').equals(CURRENT_USER_ID).toArray();

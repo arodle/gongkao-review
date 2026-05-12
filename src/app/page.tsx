@@ -4,9 +4,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/lib/stores/appStore';
 import { KnowledgeGraph } from '@/components/KnowledgeGraph/KnowledgeGraph';
+import { MindMapEditor } from '@/components/KnowledgeGraph/MindMapEditor';
 import { PracticeSelector, PracticeSession } from '@/components/Practice/PracticeComponents';
 import { ReportDashboard } from '@/components/Report/ReportComponents';
 import { CenterDashboard } from '@/components/Center/CenterComponents';
+import { WrongAnswerNotebook } from '@/components/WrongAnswerNotebook/WrongAnswerNotebook';
 import { cn } from '@/lib/utils';
 import type { AppTab, QuestionBankItem, PracticeMode } from '@/types';
 import {
@@ -22,16 +24,13 @@ import {
   WifiOff,
   Target,
   Settings,
+  Map,
+  Pencil,
+  BookMarked,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
 import {
   Tooltip,
   TooltipContent,
@@ -54,6 +53,7 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<AppTab>('mindmap');
   const [practiceMode, setPracticeMode] = useState<PracticeMode | null>(null);
   const [isPracticeActive, setIsPracticeActive] = useState(false);
+  const [mindmapView, setMindmapView] = useState<'graph' | 'editor'>('graph');
 
   useEffect(() => {
     const handleOnline = () => useAppStore.getState().setOnlineStatus(true);
@@ -74,6 +74,7 @@ function AppContent() {
   const tabs: Array<{ id: AppTab; label: string; icon: React.ElementType }> = [
     { id: 'mindmap', label: '知识导图', icon: GitBranch },
     { id: 'practice', label: '智能练习', icon: BookOpen },
+    { id: 'wrongbook', label: '错题本', icon: BookMarked },
     { id: 'report', label: '数据报告', icon: BarChart3 },
     { id: 'center', label: '个人中心', icon: User },
   ];
@@ -250,6 +251,7 @@ function AppContent() {
       {/* Main content */}
       <main className="flex-1 overflow-hidden">
         <AnimatePresence mode="wait">
+          {/* Knowledge MindMap Tab */}
           {activeTab === 'mindmap' && (
             <motion.div
               key="mindmap"
@@ -258,10 +260,62 @@ function AppContent() {
               exit={{ opacity: 0, x: 20 }}
               className="h-full"
             >
-              <KnowledgeGraph />
+              <div className="h-full flex flex-col">
+                {/* View Toggle */}
+                <div className="p-3 border-b bg-white/50 dark:bg-slate-900/50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant={mindmapView === 'graph' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setMindmapView('graph')}
+                      >
+                        <Map className="h-4 w-4 mr-1" />
+                        导图视图
+                      </Button>
+                      <Button
+                        variant={mindmapView === 'editor' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setMindmapView('editor')}
+                      >
+                        <Pencil className="h-4 w-4 mr-1" />
+                        编辑模式
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-full bg-[#DC2626]" />
+                        <span>薄弱</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-full bg-[#EA580C]" />
+                        <span>需加强</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-full bg-[#CA8A04]" />
+                        <span>学习中</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded-full bg-[#0891B2]" />
+                        <span>熟练</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-hidden">
+                  {mindmapView === 'graph' ? (
+                    <KnowledgeGraph />
+                  ) : (
+                    <MindMapEditor />
+                  )}
+                </div>
+              </div>
             </motion.div>
           )}
 
+          {/* Practice Tab */}
           {activeTab === 'practice' && !isPracticeActive && (
             <motion.div
               key="practice-selector"
@@ -270,7 +324,7 @@ function AppContent() {
               exit={{ opacity: 0, x: 20 }}
               className="h-full overflow-auto"
             >
-              <div className="max-w-4xl mx-auto py-8">
+              <div className="max-w-4xl mx-auto py-8 px-4">
                 <div className="text-center mb-8">
                   <h2 className="text-2xl font-bold mb-2">选择练习模式</h2>
                   <p className="text-muted-foreground">
@@ -321,7 +375,7 @@ function AppContent() {
               exit={{ opacity: 0 }}
               className="h-full overflow-auto"
             >
-              <div className="max-w-2xl mx-auto py-8">
+              <div className="max-w-2xl mx-auto py-8 px-4">
                 <PracticeSession
                   questions={getPracticeQuestions()}
                   mode={practiceMode}
@@ -331,6 +385,28 @@ function AppContent() {
             </motion.div>
           )}
 
+          {/* Wrong Answer Notebook Tab */}
+          {activeTab === 'wrongbook' && (
+            <motion.div
+              key="wrongbook"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="h-full"
+            >
+              <div className="h-full">
+                <div className="p-3 border-b bg-white/50 dark:bg-slate-900/50">
+                  <h3 className="font-semibold">双栏错题本</h3>
+                  <p className="text-xs text-muted-foreground">左侧展示错题，右侧编辑笔记，绑定完整知识层级标签</p>
+                </div>
+                <div className="h-[calc(100%-72px)]">
+                  <WrongAnswerNotebook />
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Report Tab */}
           {activeTab === 'report' && (
             <motion.div
               key="report"
@@ -343,6 +419,7 @@ function AppContent() {
             </motion.div>
           )}
 
+          {/* Center Tab */}
           {activeTab === 'center' && (
             <motion.div
               key="center"
@@ -366,7 +443,7 @@ function AppContent() {
             <span>薄弱点：{weakCount}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span>本地优先 · 离线可用</span>
+            <span>v1.2 本地优先 · 离线可用</span>
           </div>
         </div>
       </footer>
