@@ -63,6 +63,8 @@ export interface QuestionBankItem {
   knowledgePath: string;
   /** 来源：mindmap-inline / practice / exam / upload */
   source: string;
+  /** 题目出处：人民日报、新华社等 */
+  reference?: string;
   /** 创建时间 */
   createdAt: string;
 }

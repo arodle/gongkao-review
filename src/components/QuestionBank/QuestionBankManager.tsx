@@ -49,6 +49,7 @@ interface QuestionFormData {
   linkedAngleName: string;
   knowledgePath: string;
   type: 'real' | 'simulated';
+  reference: string;
 }
 
 const initialFormData: QuestionFormData = {
@@ -66,6 +67,7 @@ const initialFormData: QuestionFormData = {
   linkedAngleName: '',
   knowledgePath: '',
   type: 'real',
+  reference: '',
 };
 
 interface ExamPaperFormData {
@@ -101,8 +103,11 @@ export function QuestionBankManager() {
     questions: [],
   });
   const [selectedQuestions, setSelectedQuestions] = useState<Set<string>>(new Set());
+  const [paperCreationMode, setPaperCreationMode] = useState<'select' | 'upload'>('select');
+  const [uploadedPaper, setUploadedPaper] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const paperInputRef = useRef<HTMLInputElement>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -169,6 +174,7 @@ export function QuestionBankManager() {
         linkedAngleName: question.linkedAngleName || '',
         knowledgePath: question.knowledgePath || '',
         type: question.type || 'real',
+        reference: question.reference || '',
       });
     } else {
       setEditingQuestion(null);
@@ -191,6 +197,7 @@ export function QuestionBankManager() {
       linkedAngleName: formData.linkedAngleName,
       knowledgePath: formData.knowledgePath,
       type: formData.type,
+      reference: formData.reference,
       createdAt: editingQuestion?.createdAt || new Date().toISOString(),
     };
 
@@ -265,15 +272,118 @@ export function QuestionBankManager() {
     });
   }, []);
 
+  const handlePaperUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        let data;
+        
+        if (file.name.endsWith('.json')) {
+          data = JSON.parse(content);
+        } else if (file.name.endsWith('.csv')) {
+          // 简单的 CSV 解析
+          const lines = content.split('\n').filter(line => line.trim());
+          const headers = lines[0].split(',').map(h => h.trim());
+          data = {
+            name: '上传的套卷',
+            type: 'real',
+            description: '通过文件上传的套卷',
+            questions: []
+          };
+          
+          for (let i = 1; i < lines.length; i++) {
+            const values = lines[i].split(',');
+            if (values.length >= 5) {
+              data.questions.push({
+                id: `upload_q_${Date.now()}_${i}`,
+                content: values[0].trim(),
+                options: [
+                  { label: 'A', text: values[1].trim() },
+                  { label: 'B', text: values[2].trim() },
+                  { label: 'C', text: values[3].trim() },
+                  { label: 'D', text: values[4].trim() }
+                ],
+                correctAnswer: values[5]?.trim() || 'A',
+                explanation: values[6]?.trim() || '',
+                reference: values[7]?.trim() || ''
+              });
+            }
+          }
+        }
+        
+        setUploadedPaper(data);
+        
+        // 自动填充表单
+        if (data.name) {
+          setPaperFormData({
+            ...paperFormData,
+            name: data.name,
+            type: data.type || 'real',
+            description: data.description || ''
+          });
+        }
+      } catch (error) {
+        alert('文件解析失败，请检查格式是否正确');
+        console.error(error);
+      }
+    };
+    reader.readAsText(file);
+  }, [paperFormData]);
+
   const handleCreatePaper = useCallback(() => {
-    if (!paperFormData.name || selectedQuestions.size === 0) return;
+    if (!paperFormData.name) return;
+    
+    let questionIds: string[] = [];
+    
+    if (paperCreationMode === 'select') {
+      if (selectedQuestions.size === 0) return;
+      questionIds = Array.from(selectedQuestions);
+    } else {
+      // 上传模式：将题目添加到题库并记录ID
+      if (!uploadedPaper?.questions?.length) {
+        alert('请先上传套卷文件');
+        return;
+      }
+      
+      questionIds = [];
+      
+      uploadedPaper.questions.forEach((q: any) => {
+        const newQuestion: QuestionBankItem = {
+          id: q.id || `q_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          content: q.content,
+          options: q.options || [
+            { label: 'A', text: '' },
+            { label: 'B', text: '' },
+            { label: 'C', text: '' },
+            { label: 'D', text: '' }
+          ],
+          correctAnswer: q.correctAnswer || 'A',
+          explanation: q.explanation || '',
+          images: q.images || [],
+          linkedAngleId: q.linkedAngleId || '',
+          linkedAngleName: q.linkedAngleName || '',
+          knowledgePath: q.knowledgePath || '',
+          type: paperFormData.type,
+          reference: q.reference || '',
+          source: 'upload',
+          createdAt: new Date().toISOString(),
+        };
+        
+        addQuestion(newQuestion);
+        questionIds.push(newQuestion.id);
+      });
+    }
 
     addExamPaper({
       id: `paper_${Date.now()}`,
       name: paperFormData.name,
       description: paperFormData.description,
       type: paperFormData.type,
-      questions: Array.from(selectedQuestions),
+      questions: questionIds,
       createdAt: new Date().toISOString(),
       completedCount: 0,
       avgScore: 0,
@@ -287,8 +397,10 @@ export function QuestionBankManager() {
       questions: [],
     });
     setSelectedQuestions(new Set());
+    setUploadedPaper(null);
+    setPaperCreationMode('select');
     alert('套卷创建成功！');
-  }, [paperFormData, selectedQuestions, addExamPaper]);
+  }, [paperFormData, selectedQuestions, paperCreationMode, uploadedPaper, addExamPaper, addQuestion]);
 
   const getLinkedNodeName = useCallback((nodeId: string) => {
     const node = nodes.find(n => n.id === nodeId);
@@ -422,6 +534,15 @@ export function QuestionBankManager() {
                               <span>解析</span>
                             </div>
                             <p className="text-xs text-muted-foreground line-clamp-2">{question.explanation}</p>
+                          </div>
+                        )}
+                        
+                        {question.reference && (
+                          <div className="mt-3 pt-3 border-t border-dashed">
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <FileText className="h-3 w-3" />
+                              <span>题目出处：{question.reference}</span>
+                            </div>
                           </div>
                         )}
                         
@@ -640,6 +761,15 @@ export function QuestionBankManager() {
             </div>
 
             <div className="space-y-2">
+              <label className="text-sm font-medium">题目出处</label>
+              <Input
+                value={formData.reference}
+                onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
+                placeholder="例如：人民日报、新华社、2023年国考真题..."
+              />
+            </div>
+
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium">解析图片</label>
                 <Button variant="outline" size="sm" onClick={() => imageInputRef.current?.click()}>
@@ -693,6 +823,39 @@ export function QuestionBankManager() {
           <DialogHeader>
             <DialogTitle>创建套卷</DialogTitle>
           </DialogHeader>
+          
+          {/* 标签页切换 */}
+          <div className="flex border-b mb-4">
+            <button
+              onClick={() => {
+                setPaperCreationMode('select');
+                setUploadedPaper(null);
+              }}
+              className={cn(
+                'px-4 py-2 text-sm font-medium transition-colors',
+                paperCreationMode === 'select'
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              从题库选择
+            </button>
+            <button
+              onClick={() => {
+                setPaperCreationMode('upload');
+                setSelectedQuestions(new Set());
+              }}
+              className={cn(
+                'px-4 py-2 text-sm font-medium transition-colors',
+                paperCreationMode === 'upload'
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              上传整张套卷
+            </button>
+          </div>
+          
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -726,57 +889,159 @@ export function QuestionBankManager() {
               />
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">选择题目（已选 {selectedQuestions.size} 题）</label>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const availableQuestions = paperFormData.type === 'real' ? realQuestions : simulatedQuestions;
-                      setSelectedQuestions(new Set(availableQuestions.map(q => q.id)));
-                    }}
-                  >
-                    全选当前类型
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSelectedQuestions(new Set())}
-                  >
-                    清空
-                  </Button>
+            {/* 从题库选择模式 */}
+            {paperCreationMode === 'select' && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">选择题目（已选 {selectedQuestions.size} 题）</label>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const availableQuestions = paperFormData.type === 'real' ? realQuestions : simulatedQuestions;
+                        setSelectedQuestions(new Set(availableQuestions.map(q => q.id)));
+                      }}
+                    >
+                      全选当前类型
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedQuestions(new Set())}
+                    >
+                      清空
+                    </Button>
+                  </div>
                 </div>
+                <ScrollArea className="h-[300px] border rounded">
+                  <div className="p-2 space-y-1">
+                    {(paperFormData.type === 'real' ? realQuestions : simulatedQuestions).length > 0 ? (
+                      (paperFormData.type === 'real' ? realQuestions : simulatedQuestions).map((question) => (
+                        <div
+                          key={question.id}
+                          className={cn(
+                            'p-2 rounded cursor-pointer transition-colors',
+                            selectedQuestions.has(question.id)
+                              ? 'bg-primary/10 border border-primary'
+                              : 'hover:bg-muted'
+                          )}
+                          onClick={() => handleToggleQuestionSelection(question.id)}
+                        >
+                          <p className="text-sm line-clamp-2">{question.content}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            正确答案: {question.correctAnswer}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        暂无{paperFormData.type === 'real' ? '真题' : '模拟题'}
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
               </div>
-              <ScrollArea className="h-[300px] border rounded">
-                <div className="p-2 space-y-1">
-                  {(paperFormData.type === 'real' ? realQuestions : simulatedQuestions).length > 0 ? (
-                    (paperFormData.type === 'real' ? realQuestions : simulatedQuestions).map((question) => (
-                      <div
-                        key={question.id}
-                        className={cn(
-                          'p-2 rounded cursor-pointer transition-colors',
-                          selectedQuestions.has(question.id)
-                            ? 'bg-primary/10 border border-primary'
-                            : 'hover:bg-muted'
-                        )}
-                        onClick={() => handleToggleQuestionSelection(question.id)}
-                      >
-                        <p className="text-sm line-clamp-2">{question.content}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          正确答案: {question.correctAnswer}
+            )}
+
+            {/* 上传整张套卷模式 */}
+            {paperCreationMode === 'upload' && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">上传套卷文件</label>
+                  <div
+                    onClick={() => paperInputRef.current?.click()}
+                    className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors"
+                  >
+                    {uploadedPaper ? (
+                      <div>
+                        <Check className="h-12 w-12 mx-auto text-green-500 mb-2" />
+                        <p className="text-sm font-medium">已上传：{uploadedPaper.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          共 {uploadedPaper.questions?.length || 0} 道题目
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setUploadedPaper(null);
+                          }}
+                        >
+                          重新上传
+                        </Button>
+                      </div>
+                    ) : (
+                      <div>
+                        <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
+                        <p className="text-sm font-medium">点击上传套卷文件</p>
+                        <p className="text-xs text-muted-foreground">
+                          支持 JSON 或 CSV 格式
                         </p>
                       </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      暂无{paperFormData.type === 'real' ? '真题' : '模拟题'}
-                    </div>
-                  )}
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    ref={paperInputRef}
+                    onChange={handlePaperUpload}
+                    accept=".json,.csv"
+                    className="hidden"
+                  />
                 </div>
-              </ScrollArea>
-            </div>
+
+                {/* 格式说明 */}
+                <div className="text-xs text-muted-foreground bg-muted p-3 rounded">
+                  <p className="font-medium mb-1">JSON 格式示例：</p>
+                  <pre className="text-xs overflow-x-auto">
+                    {`{
+  "name": "2024年国考真题",
+  "type": "real",
+  "description": "真题解析",
+  "questions": [
+    {
+      "content": "题目内容",
+      "options": [
+        {"label": "A", "text": "选项A"},
+        {"label": "B", "text": "选项B"},
+        {"label": "C", "text": "选项C"},
+        {"label": "D", "text": "选项D"}
+      ],
+      "correctAnswer": "A",
+      "explanation": "解析内容",
+      "reference": "题目出处"
+    }
+  ]
+}`}
+                  </pre>
+                  <p className="font-medium mt-3 mb-1">CSV 格式示例：</p>
+                  <pre className="text-xs overflow-x-auto">
+                    题目内容,选项A,选项B,选项C,选项D,正确答案,解析,出处
+                    1+1=?,1,2,3,4,B,1+1=2,数学题
+                  </pre>
+                </div>
+
+                {/* 预览上传的题目 */}
+                {uploadedPaper?.questions?.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">题目预览</label>
+                    <ScrollArea className="h-[200px] border rounded">
+                      <div className="p-2 space-y-2">
+                        {uploadedPaper.questions.map((q: any, idx: number) => (
+                          <div key={idx} className="p-2 bg-muted rounded">
+                            <p className="text-sm line-clamp-1">{idx + 1}. {q.content}</p>
+                            <p className="text-xs text-muted-foreground">
+                              正确答案: {q.correctAnswer}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowPaperDialog(false)}>
@@ -784,7 +1049,11 @@ export function QuestionBankManager() {
             </Button>
             <Button
               onClick={handleCreatePaper}
-              disabled={!paperFormData.name || selectedQuestions.size === 0}
+              disabled={
+                !paperFormData.name || 
+                (paperCreationMode === 'select' && selectedQuestions.size === 0) ||
+                (paperCreationMode === 'upload' && !uploadedPaper?.questions?.length)
+              }
             >
               <Check className="h-4 w-4 mr-1" />
               创建套卷

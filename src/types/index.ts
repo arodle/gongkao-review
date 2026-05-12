@@ -73,6 +73,7 @@ export interface QuestionBankItem {
   knowledgePath?: string;
   source?: string;
   type?: 'real' | 'simulated';
+  reference?: string;
   createdAt: string;
 }
 
