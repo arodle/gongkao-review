@@ -6,6 +6,7 @@ import type {
   QuestionBankItem,
   AnswerRecord,
   ExamResult,
+  ExamPaper,
   Question,
 } from '@/types';
 import {
@@ -30,6 +31,7 @@ interface AppState {
   questionBank: QuestionBankItem[];
   answerRecords: AnswerRecord[];
   examResults: ExamResult[];
+  examPapers: ExamPaper[];
   isInitialized: boolean;
   isOnline: boolean;
   syncStatus: 'idle' | 'syncing' | 'success' | 'error';
@@ -45,6 +47,11 @@ interface AppState {
   getNodePSHistory: (nodeId: string) => Promise<PSHistoryRecord[]>;
   getQuestionByAngleId: (angleId: string) => QuestionBankItem[];
   getNodeStats: (nodeId: string) => { correct: number; wrong: number };
+  addQuestion: (question: QuestionBankItem) => void;
+  updateQuestion: (question: QuestionBankItem) => void;
+  deleteQuestion: (questionId: string) => void;
+  addExamPaper: (paper: ExamPaper) => void;
+  deleteExamPaper: (paperId: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -54,6 +61,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   questionBank: [],
   answerRecords: [],
   examResults: [],
+  examPapers: [],
   isInitialized: false,
   isOnline: typeof window !== 'undefined' ? navigator.onLine : true,
   syncStatus: 'idle',
@@ -171,6 +179,38 @@ export const useAppStore = create<AppState>((set, get) => ({
       correct: records.filter(r => r.is_correct).length,
       wrong: records.filter(r => !r.is_correct).length,
     };
+  },
+
+  addQuestion: (question: QuestionBankItem) => {
+    set(state => ({
+      questionBank: [...state.questionBank, question],
+    }));
+  },
+
+  updateQuestion: (question: QuestionBankItem) => {
+    set(state => ({
+      questionBank: state.questionBank.map(q =>
+        q.id === question.id ? question : q
+      ),
+    }));
+  },
+
+  deleteQuestion: (questionId: string) => {
+    set(state => ({
+      questionBank: state.questionBank.filter(q => q.id !== questionId),
+    }));
+  },
+
+  addExamPaper: (paper: ExamPaper) => {
+    set(state => ({
+      examPapers: [...state.examPapers, paper],
+    }));
+  },
+
+  deleteExamPaper: (paperId: string) => {
+    set(state => ({
+      examPapers: state.examPapers.filter(p => p.id !== paperId),
+    }));
   },
 }));
 

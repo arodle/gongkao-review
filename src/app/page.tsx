@@ -9,6 +9,7 @@ import { PracticeSelector, PracticeSession } from '@/components/Practice/Practic
 import { ReportDashboard } from '@/components/Report/ReportComponents';
 import { CenterDashboard } from '@/components/Center/CenterComponents';
 import { WrongAnswerNotebook } from '@/components/WrongAnswerNotebook/WrongAnswerNotebook';
+import { QuestionBankManager } from '@/components/QuestionBank/QuestionBankManager';
 import { cn } from '@/lib/utils';
 import type { AppTab, QuestionBankItem, PracticeMode } from '@/types';
 import {
@@ -74,6 +75,7 @@ function AppContent() {
   const tabs: Array<{ id: AppTab; label: string; icon: React.ElementType }> = [
     { id: 'mindmap', label: '知识导图', icon: GitBranch },
     { id: 'practice', label: '智能练习', icon: BookOpen },
+    { id: 'bank', label: '题库管理', icon: Target },
     { id: 'wrongbook', label: '错题本', icon: BookMarked },
     { id: 'report', label: '数据报告', icon: BarChart3 },
     { id: 'center', label: '个人中心', icon: User },
@@ -85,6 +87,11 @@ function AppContent() {
   };
 
   const handlePracticeComplete = (results: any) => {
+    setIsPracticeActive(false);
+    setPracticeMode(null);
+  };
+
+  const handleExitPractice = () => {
     setIsPracticeActive(false);
     setPracticeMode(null);
   };
@@ -380,8 +387,22 @@ function AppContent() {
                   questions={getPracticeQuestions()}
                   mode={practiceMode}
                   onComplete={handlePracticeComplete}
+                  onExit={handleExitPractice}
                 />
               </div>
+            </motion.div>
+          )}
+
+          {/* Question Bank Tab */}
+          {activeTab === 'bank' && (
+            <motion.div
+              key="bank"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="h-full"
+            >
+              <QuestionBankManager />
             </motion.div>
           )}
 

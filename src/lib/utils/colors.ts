@@ -13,7 +13,7 @@ export function getPSColor(ps: number): PSColorConfig {
     return {
       background: '#EA580C',
       border: '#C2410C',
-      text: '#FFFFFF',
+      text: '#000000',
       pulse: true,
       opacity: 1,
     };

@@ -40,6 +40,11 @@ import {
   AlertTriangle,
   BookOpen,
   PenTool,
+  ArrowLeft,
+  Send,
+  X,
+  Timer,
+  ListChecks,
 } from 'lucide-react';
 
 interface QuestionCardProps {
@@ -48,6 +53,15 @@ interface QuestionCardProps {
   totalQuestions: number;
   onAnswer: (selectedAnswer: string, isCorrect: boolean, answerTime: number) => void;
   showDrawing?: boolean;
+  onPrev?: () => void;
+  onNext?: () => void;
+  onSubmit?: () => void;
+  onExit?: () => void;
+  canGoPrev: boolean;
+  canGoNext: boolean;
+  isLastQuestion: boolean;
+  hasAnswered: boolean;
+  elapsedTime: number;
 }
 
 export function QuestionCard({
@@ -56,6 +70,15 @@ export function QuestionCard({
   totalQuestions,
   onAnswer,
   showDrawing = false,
+  onPrev,
+  onNext,
+  onSubmit,
+  onExit,
+  canGoPrev,
+  canGoNext,
+  isLastQuestion,
+  hasAnswered,
+  elapsedTime,
 }: QuestionCardProps) {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
@@ -78,20 +101,32 @@ export function QuestionCard({
 
   const isCorrect = selectedOption === question.correctAnswer;
 
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className="space-y-6"
+      className="space-y-4"
     >
       <div className="flex items-center justify-between">
-        <Badge variant="outline" className="text-sm">
-          第 {questionNumber} / {totalQuestions} 题
-        </Badge>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Clock className="h-4 w-4" />
-          <span>{Math.floor((Date.now() - startTime) / 1000)}s</span>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={onExit} className="text-muted-foreground">
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            退出
+          </Button>
+          <Badge variant="outline" className="text-sm">
+            第 {questionNumber} / {totalQuestions} 题
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted px-3 py-1 rounded-full">
+          <Timer className="h-4 w-4" />
+          <span className="font-mono">{formatTime(elapsedTime)}</span>
         </div>
       </div>
 
@@ -205,6 +240,40 @@ export function QuestionCard({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <div className="flex items-center justify-between pt-4 border-t">
+        <Button
+          variant="outline"
+          onClick={onPrev}
+          disabled={!canGoPrev}
+        >
+          <ChevronLeft className="h-4 w-4 mr-1" />
+          上一题
+        </Button>
+
+        <div className="flex gap-2">
+          {!isLastQuestion ? (
+            <Button
+              variant="default"
+              onClick={onNext}
+              disabled={!hasAnswered}
+            >
+              下一题
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          ) : (
+            <Button
+              variant="default"
+              onClick={onSubmit}
+              disabled={!hasAnswered}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Send className="h-4 w-4 mr-1" />
+              提交
+            </Button>
+          )}
+        </div>
+      </div>
     </motion.div>
   );
 }
@@ -313,7 +382,7 @@ export function PracticeSelector({ onSelectMode }: PracticeSelectorProps) {
                 <Clock className="h-6 w-6 text-green-600 dark:text-green-400" />
               </div>
               <div className="space-y-2">
-                <h3 className="font-semibold text-lg">套卷模考</h3>
+                <h3 className="font-semibold text-lg">套卷练习</h3>
                 <p className="text-sm text-muted-foreground">
                   完整试卷定时模拟，检验整体学习效果
                 </p>
@@ -331,13 +400,29 @@ interface PracticeSessionProps {
   questions: QuestionBankItem[];
   mode: 'sequence' | 'random' | 'targeted' | 'exam';
   onComplete: (results: { correct: number; wrong: number; details: any[] }) => void;
+  onExit: () => void;
 }
 
-export function PracticeSession({ questions, mode, onComplete }: PracticeSessionProps) {
+export function PracticeSession({ questions, mode, onComplete, onExit }: PracticeSessionProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<any[]>([]);
   const [isComplete, setIsComplete] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [userAnswers, setUserAnswers] = useState<{ [key: number]: string }>({});
   const { updateNodePSScore, addAnswer } = useAppStore();
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    timerRef.current = setInterval(() => {
+      setElapsedTime(prev => prev + 1);
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, []);
 
   if (!questions || questions.length === 0) {
     return (
@@ -349,6 +434,9 @@ export function PracticeSession({ questions, mode, onComplete }: PracticeSession
             <p className="text-muted-foreground">
               题库为空或没有符合当前筛选条件的题目
             </p>
+            <Button variant="outline" className="mt-4" onClick={onExit}>
+              返回练习选择
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -356,8 +444,12 @@ export function PracticeSession({ questions, mode, onComplete }: PracticeSession
   }
 
   const currentQuestion = questions[currentIndex];
+  const currentAnswer = userAnswers[currentIndex];
+  const hasAnswered = currentAnswer !== undefined;
 
   const handleAnswer = useCallback(async (selectedAnswer: string, isCorrect: boolean, answerTime: number) => {
+    setUserAnswers(prev => ({ ...prev, [currentIndex]: selectedAnswer }));
+
     const answer = {
       question: currentQuestion,
       selectedAnswer,
@@ -381,23 +473,41 @@ export function PracticeSession({ questions, mode, onComplete }: PracticeSession
     if (currentQuestion.linkedAngleId) {
       await updateNodePSScore(currentQuestion.linkedAngleId, isCorrect);
     }
+  }, [currentQuestion, currentIndex, mode, addAnswer, updateNodePSScore]);
 
-    setTimeout(() => {
-      if (currentIndex < questions.length - 1) {
-        setCurrentIndex(prev => prev + 1);
-      } else {
-        setIsComplete(true);
-        onComplete({
-          correct: answers.filter(a => a.isCorrect).length + (isCorrect ? 1 : 0),
-          wrong: answers.filter(a => !a.isCorrect).length + (isCorrect ? 0 : 1),
-          details: [...answers, answer],
-        });
-      }
-    }, 500);
-  }, [currentQuestion, currentIndex, questions.length, answers, mode, onComplete, updateNodePSScore, addAnswer]);
+  const handlePrev = useCallback(() => {
+    if (currentIndex > 0) {
+      setCurrentIndex(prev => prev - 1);
+    }
+  }, [currentIndex]);
+
+  const handleNext = useCallback(() => {
+    if (currentIndex < questions.length - 1) {
+      setCurrentIndex(prev => prev + 1);
+    }
+  }, [currentIndex, questions.length]);
+
+  const handleSubmit = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    setIsComplete(true);
+    onComplete({
+      correct: answers.filter(a => a.isCorrect).length,
+      wrong: answers.filter(a => !a.isCorrect).length,
+      details: answers,
+    });
+  }, [answers, onComplete]);
+
+  const handleExitConfirm = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    onExit();
+  }, [onExit]);
 
   if (isComplete) {
-    return <PracticeComplete results={answers} />;
+    return <PracticeComplete results={answers} onExit={onExit} elapsedTime={elapsedTime} />;
   }
 
   return (
@@ -408,15 +518,30 @@ export function PracticeSession({ questions, mode, onComplete }: PracticeSession
         totalQuestions={questions.length}
         onAnswer={handleAnswer}
         showDrawing={mode === 'exam'}
+        onPrev={handlePrev}
+        onNext={handleNext}
+        onSubmit={handleSubmit}
+        onExit={handleExitConfirm}
+        canGoPrev={currentIndex > 0}
+        canGoNext={currentIndex < questions.length - 1}
+        isLastQuestion={currentIndex === questions.length - 1}
+        hasAnswered={hasAnswered}
+        elapsedTime={elapsedTime}
       />
     </div>
   );
 }
 
-function PracticeComplete({ results }: { results: any[] }) {
+function PracticeComplete({ results, onExit, elapsedTime }: { results: any[]; onExit: () => void; elapsedTime: number }) {
   const correctCount = results.filter(r => r.isCorrect).length;
   const totalCount = results.length;
-  const accuracy = Math.round((correctCount / totalCount) * 100);
+  const accuracy = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}分${secs}秒`;
+  };
 
   return (
     <motion.div
@@ -427,9 +552,7 @@ function PracticeComplete({ results }: { results: any[] }) {
       <Card className="border-2 border-primary">
         <CardContent className="p-8 text-center space-y-6">
           <div className="text-6xl font-bold text-primary">{accuracy}%</div>
-          <p className="text-lg">
-            正确率
-          </p>
+          <p className="text-lg">正确率</p>
           <div className="flex justify-center gap-8">
             <div className="text-center">
               <div className="text-3xl font-bold text-green-500">{correctCount}</div>
@@ -439,12 +562,16 @@ function PracticeComplete({ results }: { results: any[] }) {
               <div className="text-3xl font-bold text-red-500">{totalCount - correctCount}</div>
               <div className="text-sm text-muted-foreground">错误</div>
             </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-blue-500">{formatTime(elapsedTime)}</div>
+              <div className="text-sm text-muted-foreground">用时</div>
+            </div>
           </div>
 
           <Progress value={accuracy} className="h-3" />
 
-          <div className="pt-4">
-            <Button size="lg" onClick={() => window.location.reload()}>
+          <div className="pt-4 flex gap-4 justify-center">
+            <Button size="lg" onClick={onExit}>
               返回练习选择
             </Button>
           </div>

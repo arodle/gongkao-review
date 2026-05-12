@@ -67,9 +67,11 @@ export interface QuestionBankItem {
   correctAnswer: string;
   explanation: string;
   linkedAngleId: string;
-  linkedAngleName: string;
-  knowledgePath: string;
-  source: string;
+  linkedAngleName?: string;
+  knowledgePath?: string;
+  source?: string;
+  difficulty?: 'easy' | 'medium' | 'hard';
+  type?: 'real' | 'simulated';
   createdAt: string;
 }
 
@@ -91,6 +93,17 @@ export interface ExamResult {
   totalQuestions: number;
   completedAt: string;
   wrongQuestionIds: string[];
+}
+
+export interface ExamPaper {
+  id: string;
+  name: string;
+  description: string;
+  type: 'real' | 'simulated';
+  questions: string[];
+  createdAt: string;
+  completedCount: number;
+  avgScore: number;
 }
 
 export type AppTab = 'mindmap' | 'practice' | 'exam' | 'bank' | 'report' | 'center';
