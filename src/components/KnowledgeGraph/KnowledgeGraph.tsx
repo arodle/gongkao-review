@@ -32,6 +32,7 @@ import {
 import {
   Tooltip,
   TooltipContent,
+  TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Progress } from '@/components/ui/progress';
@@ -342,6 +343,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
   }, [selectedNode]);
 
   return (
+    <TooltipProvider>
     <div className="relative w-full h-full bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-lg overflow-hidden">
       <div ref={containerRef} className="w-full h-full" />
 
@@ -615,6 +617,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
         )}
       </AnimatePresence>
     </div>
+    </TooltipProvider>
   );
 }
 

@@ -493,5 +493,9 @@ export default function HomePage() {
     initialize();
   }, [initialize]);
 
-  return <AppContent />;
+  return (
+    <TooltipProvider>
+      <AppContent />
+    </TooltipProvider>
+  );
 }
