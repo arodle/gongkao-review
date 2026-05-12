@@ -51,7 +51,7 @@ interface QuestionCardProps {
   question: QuestionBankItem;
   questionNumber: number;
   totalQuestions: number;
-  onAnswer: (selectedAnswer: string, isCorrect: boolean, answerTime: number) => void;
+  onAnswer?: (selectedAnswer: string, isCorrect: boolean, answerTime: number) => void;
   showDrawing?: boolean;
   onPrev?: () => void;
   onNext?: () => void;
@@ -62,6 +62,9 @@ interface QuestionCardProps {
   isLastQuestion: boolean;
   hasAnswered: boolean;
   elapsedTime: number;
+  answerMode?: 'instant' | 'batch';
+  userAnswer?: string;
+  onSelectAnswer?: (answer: string) => void;
 }
 
 export function QuestionCard({
@@ -79,6 +82,9 @@ export function QuestionCard({
   isLastQuestion,
   hasAnswered,
   elapsedTime,
+  answerMode = 'instant',
+  userAnswer,
+  onSelectAnswer,
 }: QuestionCardProps) {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
@@ -86,6 +92,14 @@ export function QuestionCard({
   const [showExplanation, setShowExplanation] = useState(false);
 
   const handleSelectOption = useCallback((label: string) => {
+    if (answerMode === 'batch') {
+      // For batch mode, just record the answer without showing result
+      setSelectedOption(label);
+      onSelectAnswer?.(label);
+      return;
+    }
+
+    // For instant mode, show result immediately
     if (showResult) return;
 
     setSelectedOption(label);
@@ -95,17 +109,20 @@ export function QuestionCard({
     const answerTime = Date.now() - startTime;
 
     setTimeout(() => {
-      onAnswer(label, isCorrect, answerTime);
+      onAnswer?.(label, isCorrect, answerTime);
     }, 100);
-  }, [showResult, question, startTime, onAnswer]);
+  }, [answerMode, showResult, question, startTime, onAnswer, onSelectAnswer]);
 
-  const isCorrect = selectedOption === question.correctAnswer;
+  const isCorrect = (answerMode === 'batch' ? userAnswer : selectedOption) === question.correctAnswer;
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
+
+  // For batch mode, determine if we should show results
+  const shouldShowResult = answerMode === 'instant' ? showResult : hasAnswered;
 
   return (
     <motion.div
@@ -136,10 +153,12 @@ export function QuestionCard({
       />
 
       <Card className={`border-2 transition-colors ${
-        showResult
+        shouldShowResult
           ? isCorrect
             ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
             : 'border-red-500 bg-red-50 dark:bg-red-900/20'
+          : (answerMode === 'batch' && userAnswer)
+          ? 'border-primary bg-primary/5'
           : 'border-transparent'
       }`}>
         <CardContent className="p-6">
@@ -152,36 +171,37 @@ export function QuestionCard({
       <div className="grid grid-cols-1 gap-3">
         {question.options.map((option) => {
           let optionClass = 'border-2 hover:border-primary hover:bg-accent transition-all';
+          const currentAnswer = answerMode === 'batch' ? userAnswer : selectedOption;
 
-          if (showResult) {
+          if (shouldShowResult) {
             if (option.label === question.correctAnswer) {
               optionClass = 'border-green-500 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300';
-            } else if (option.label === selectedOption && !isCorrect) {
+            } else if (option.label === currentAnswer && !isCorrect) {
               optionClass = 'border-red-500 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 line-through';
             } else {
               optionClass = 'border-gray-200 dark:border-gray-700 opacity-50';
             }
-          } else if (selectedOption === option.label) {
+          } else if (currentAnswer === option.label) {
             optionClass = 'border-primary bg-primary/10';
           }
 
           return (
             <motion.button
               key={option.label}
-              whileHover={!showResult ? { scale: 1.01 } : {}}
-              whileTap={!showResult ? { scale: 0.99 } : {}}
+              whileHover={!shouldShowResult ? { scale: 1.01 } : {}}
+              whileTap={!shouldShowResult ? { scale: 0.99 } : {}}
               onClick={() => handleSelectOption(option.label)}
-              disabled={showResult}
+              disabled={shouldShowResult}
               className={`w-full p-4 rounded-xl text-left flex items-start gap-3 ${optionClass}`}
             >
               <span className="flex-shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center font-semibold">
                 {option.label}
               </span>
               <span className="flex-1 pt-1">{option.text}</span>
-              {showResult && option.label === question.correctAnswer && (
+              {shouldShowResult && option.label === question.correctAnswer && (
                 <CheckCircle2 className="h-6 w-6 text-green-500 flex-shrink-0" />
               )}
-              {showResult && option.label === selectedOption && !isCorrect && (
+              {shouldShowResult && option.label === currentAnswer && !isCorrect && (
                 <XCircle className="h-6 w-6 text-red-500 flex-shrink-0" />
               )}
             </motion.button>
@@ -190,7 +210,7 @@ export function QuestionCard({
       </div>
 
       <AnimatePresence>
-        {showResult && (
+        {shouldShowResult && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
@@ -235,6 +255,13 @@ export function QuestionCard({
                 <p className="text-sm leading-relaxed">
                   {question.explanation}
                 </p>
+                {question.images && question.images.length > 0 && (
+                  <div className="mt-4 grid grid-cols-1 gap-2">
+                    {question.images.map((img, idx) => (
+                      <img key={idx} src={img} alt={`解析图片 ${idx + 1}`} className="rounded-lg border max-h-64 object-contain" />
+                    ))}
+                  </div>
+                )}
               </motion.div>
             )}
           </motion.div>
@@ -256,7 +283,7 @@ export function QuestionCard({
             <Button
               variant="default"
               onClick={onNext}
-              disabled={!hasAnswered}
+              disabled={answerMode === 'instant' && !hasAnswered}
             >
               下一题
               <ChevronRight className="h-4 w-4 ml-1" />
@@ -265,7 +292,7 @@ export function QuestionCard({
             <Button
               variant="default"
               onClick={onSubmit}
-              disabled={!hasAnswered}
+              disabled={answerMode === 'instant' && !hasAnswered}
               className="bg-green-600 hover:bg-green-700"
             >
               <Send className="h-4 w-4 mr-1" />
@@ -399,11 +426,12 @@ export function PracticeSelector({ onSelectMode }: PracticeSelectorProps) {
 interface PracticeSessionProps {
   questions: QuestionBankItem[];
   mode: 'sequence' | 'random' | 'targeted' | 'exam';
+  answerMode?: 'instant' | 'batch';
   onComplete: (results: { correct: number; wrong: number; details: any[] }) => void;
   onExit: () => void;
 }
 
-export function PracticeSession({ questions, mode, onComplete, onExit }: PracticeSessionProps) {
+export function PracticeSession({ questions, mode, answerMode = 'instant', onComplete, onExit }: PracticeSessionProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<any[]>([]);
   const [isComplete, setIsComplete] = useState(false);
@@ -444,8 +472,9 @@ export function PracticeSession({ questions, mode, onComplete, onExit }: Practic
   }
 
   const currentQuestion = questions[currentIndex];
-  const currentAnswer = userAnswers[currentIndex];
-  const hasAnswered = currentAnswer !== undefined;
+  const currentUserAnswer = userAnswers[currentIndex];
+  const hasAnsweredCurrent = currentUserAnswer !== undefined;
+  const hasAnsweredAll = Object.keys(userAnswers).length === questions.length;
 
   const handleAnswer = useCallback(async (selectedAnswer: string, isCorrect: boolean, answerTime: number) => {
     setUserAnswers(prev => ({ ...prev, [currentIndex]: selectedAnswer }));
@@ -475,6 +504,10 @@ export function PracticeSession({ questions, mode, onComplete, onExit }: Practic
     }
   }, [currentQuestion, currentIndex, mode, addAnswer, updateNodePSScore]);
 
+  const handleSelectAnswer = useCallback((selectedAnswer: string) => {
+    setUserAnswers(prev => ({ ...prev, [currentIndex]: selectedAnswer }));
+  }, [currentIndex]);
+
   const handlePrev = useCallback(() => {
     if (currentIndex > 0) {
       setCurrentIndex(prev => prev - 1);
@@ -487,17 +520,58 @@ export function PracticeSession({ questions, mode, onComplete, onExit }: Practic
     }
   }, [currentIndex, questions.length]);
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback(async () => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
     }
-    setIsComplete(true);
-    onComplete({
-      correct: answers.filter(a => a.isCorrect).length,
-      wrong: answers.filter(a => !a.isCorrect).length,
-      details: answers,
-    });
-  }, [answers, onComplete]);
+
+    // For batch mode, process all answers
+    if (answerMode === 'batch') {
+      const allAnswers = questions.map((q, idx) => {
+        const selectedAnswer = userAnswers[idx];
+        const isCorrect = selectedAnswer === q.correctAnswer;
+        return {
+          question: q,
+          selectedAnswer,
+          isCorrect,
+          answerTime: elapsedTime / questions.length * 1000,
+          timestamp: Date.now(),
+        };
+      });
+
+      // Update PS scores for all answers
+      for (const answer of allAnswers) {
+        if (answer.question.linkedAngleId) {
+          await updateNodePSScore(answer.question.linkedAngleId, answer.isCorrect);
+        }
+        addAnswer({
+          questionId: answer.question.id,
+          practiceSetId: `practice_${mode}`,
+          selectedAnswer: answer.selectedAnswer || '',
+          isCorrect: answer.isCorrect,
+          timestamp: Date.now(),
+          linkedAngleId: answer.question.linkedAngleId,
+          source: 'practice',
+        });
+      }
+
+      setAnswers(allAnswers);
+      setIsComplete(true);
+      onComplete({
+        correct: allAnswers.filter(a => a.isCorrect).length,
+        wrong: allAnswers.filter(a => !a.isCorrect).length,
+        details: allAnswers,
+      });
+    } else {
+      // For instant mode, just finish
+      setIsComplete(true);
+      onComplete({
+        correct: answers.filter(a => a.isCorrect).length,
+        wrong: answers.filter(a => !a.isCorrect).length,
+        details: answers,
+      });
+    }
+  }, [timerRef, answerMode, questions, userAnswers, elapsedTime, updateNodePSScore, addAnswer, mode, answers, onComplete]);
 
   const handleExitConfirm = useCallback(() => {
     if (timerRef.current) {
@@ -507,11 +581,34 @@ export function PracticeSession({ questions, mode, onComplete, onExit }: Practic
   }, [onExit]);
 
   if (isComplete) {
-    return <PracticeComplete results={answers} onExit={onExit} elapsedTime={elapsedTime} />;
+    return <PracticeComplete results={answers.length > 0 ? answers : questions.map((q, idx) => ({
+      question: q,
+      selectedAnswer: userAnswers[idx],
+      isCorrect: userAnswers[idx] === q.correctAnswer,
+      answerTime: elapsedTime / questions.length * 1000,
+    }))} onExit={onExit} elapsedTime={elapsedTime} />;
   }
 
   return (
     <div className="max-w-2xl mx-auto p-6">
+      <div className="mb-4">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="flex-1 flex overflow-x-auto gap-1 pb-2">
+            {questions.map((_, idx) => (
+              <Button
+                key={idx}
+                variant={idx === currentIndex ? 'default' : userAnswers[idx] ? 'secondary' : 'outline'}
+                size="sm"
+                className="min-w-[2.5rem] flex-shrink-0"
+                onClick={() => setCurrentIndex(idx)}
+              >
+                {idx + 1}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </div>
+      
       <QuestionCard
         question={currentQuestion}
         questionNumber={currentIndex + 1}
@@ -525,8 +622,11 @@ export function PracticeSession({ questions, mode, onComplete, onExit }: Practic
         canGoPrev={currentIndex > 0}
         canGoNext={currentIndex < questions.length - 1}
         isLastQuestion={currentIndex === questions.length - 1}
-        hasAnswered={hasAnswered}
+        hasAnswered={answerMode === 'batch' ? hasAnsweredAll : hasAnsweredCurrent}
         elapsedTime={elapsedTime}
+        answerMode={answerMode}
+        userAnswer={currentUserAnswer}
+        onSelectAnswer={handleSelectAnswer}
       />
     </div>
   );
@@ -569,6 +669,35 @@ function PracticeComplete({ results, onExit, elapsedTime }: { results: any[]; on
           </div>
 
           <Progress value={accuracy} className="h-3" />
+
+          {results.length > 0 && (
+            <div className="mt-6">
+              <h3 className="font-semibold mb-3 text-left">答题详情</h3>
+              <ScrollArea className="h-48 border rounded-lg p-3">
+                <div className="space-y-2">
+                  {results.map((result, idx) => (
+                    <div key={idx} className={`flex items-center justify-between p-2 rounded ${
+                      result.isCorrect 
+                        ? 'bg-green-50 dark:bg-green-900/20'
+                        : 'bg-red-50 dark:bg-red-900/20'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{idx + 1}.</span>
+                        <span className="text-sm truncate max-w-xs">
+                          {result.question?.content?.substring(0, 50)}...
+                        </span>
+                      </div>
+                      {result.isCorrect ? (
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                      ) : (
+                        <XCircle className="h-5 w-5 text-red-500" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
 
           <div className="pt-4 flex gap-4 justify-center">
             <Button size="lg" onClick={onExit}>

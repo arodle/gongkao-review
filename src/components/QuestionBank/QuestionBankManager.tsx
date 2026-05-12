@@ -32,6 +32,7 @@ import {
   AlertTriangle,
   Copy,
   Layers,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -40,6 +41,7 @@ interface QuestionFormData {
   options: { label: string; text: string }[];
   correctAnswer: string;
   explanation: string;
+  images: string[];
   linkedAngleId: string;
   difficulty: 'easy' | 'medium' | 'hard';
   type: 'real' | 'simulated';
@@ -55,6 +57,7 @@ const initialFormData: QuestionFormData = {
   ],
   correctAnswer: '',
   explanation: '',
+  images: [],
   linkedAngleId: '',
   difficulty: 'medium',
   type: 'real',
@@ -95,6 +98,32 @@ export function QuestionBankManager() {
   });
   const [selectedQuestions, setSelectedQuestions] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    files.forEach((file) => {
+      if (!file.type.startsWith('image/')) return;
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        setFormData(prev => ({
+          ...prev,
+          images: [...prev.images, result]
+        }));
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  }, []);
+
+  const handleRemoveImage = useCallback((index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index)
+    }));
+  }, []);
 
   const filteredQuestions = useMemo(() => {
     let result = questionBank;
@@ -134,6 +163,7 @@ export function QuestionBankManager() {
         options: [...question.options],
         correctAnswer: question.correctAnswer,
         explanation: question.explanation,
+        images: question.images || [],
         linkedAngleId: question.linkedAngleId || '',
         difficulty: question.difficulty || 'medium',
         type: question.type || 'real',
@@ -154,6 +184,7 @@ export function QuestionBankManager() {
       options: formData.options.filter(o => o.text),
       correctAnswer: formData.correctAnswer,
       explanation: formData.explanation,
+      images: formData.images,
       linkedAngleId: formData.linkedAngleId,
       difficulty: formData.difficulty,
       type: formData.type,
@@ -566,6 +597,43 @@ export function QuestionBankManager() {
                 placeholder="请输入题目解析..."
                 rows={3}
               />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">解析图片</label>
+                <Button variant="outline" size="sm" onClick={() => imageInputRef.current?.click()}>
+                  <ImageIcon className="h-4 w-4 mr-1" />
+                  添加图片
+                </Button>
+              </div>
+              <input
+                type="file"
+                ref={imageInputRef}
+                onChange={handleImageUpload}
+                accept="image/*"
+                multiple
+                className="hidden"
+              />
+              {formData.images.length > 0 && (
+                <div className="grid grid-cols-3 gap-2">
+                  {formData.images.map((image, index) => (
+                    <div key={index} className="relative group">
+                      <img
+                        src={image}
+                        alt={`解析图片 ${index + 1}`}
+                        className="w-full h-24 object-cover rounded border"
+                      />
+                      <button
+                        onClick={() => handleRemoveImage(index)}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>

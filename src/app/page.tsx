@@ -57,6 +57,8 @@ function AppContent() {
   const [isPracticeActive, setIsPracticeActive] = useState(false);
   const [mindmapView, setMindmapView] = useState<'graph' | 'editor'>('graph');
   const [practiceTargetNodeId, setPracticeTargetNodeId] = useState<string | null>(null);
+  const [practiceCount, setPracticeCount] = useState<number>(0); // 0 means all
+  const [answerMode, setAnswerMode] = useState<'instant' | 'batch'>('instant');
 
   useEffect(() => {
     const handleOnline = () => useAppStore.getState().setOnlineStatus(true);
@@ -107,25 +109,30 @@ function AppContent() {
   };
 
   const getPracticeQuestions = useCallback((): QuestionBankItem[] => {
+    let questions: QuestionBankItem[];
+    
     if (!practiceMode || practiceMode === 'exam') {
-      return questionBank;
-    }
-
-    if (practiceMode === 'targeted') {
+      questions = questionBank;
+    } else if (practiceMode === 'targeted') {
       if (practiceTargetNodeId) {
-        return getQuestionByAngleId(practiceTargetNodeId);
+        questions = getQuestionByAngleId(practiceTargetNodeId);
       } else {
         const weakIds = new Set(weakNodes.map(n => n.id));
-        return questionBank.filter(q => weakIds.has(q.linkedAngleId));
+        questions = questionBank.filter(q => weakIds.has(q.linkedAngleId));
       }
+    } else if (practiceMode === 'sequence') {
+      questions = [...questionBank].sort((a, b) => a.linkedAngleId.localeCompare(b.linkedAngleId));
+    } else {
+      questions = [...questionBank].sort(() => Math.random() - 0.5);
     }
-
-    if (practiceMode === 'sequence') {
-      return [...questionBank].sort((a, b) => a.linkedAngleId.localeCompare(b.linkedAngleId));
+    
+    // Apply question count limit if needed
+    if (practiceCount > 0 && questions.length > practiceCount) {
+      return questions.slice(0, practiceCount);
     }
-
-    return [...questionBank].sort(() => Math.random() - 0.5);
-  }, [practiceMode, questionBank, weakNodes, practiceTargetNodeId, getQuestionByAngleId]);
+    
+    return questions;
+  }, [practiceMode, questionBank, weakNodes, practiceTargetNodeId, getQuestionByAngleId, practiceCount]);
 
   if (!isInitialized) {
     return (
@@ -374,6 +381,64 @@ function AppContent() {
                   </div>
                 </div>
 
+                <div className="mb-8">
+                  <div className="flex flex-wrap items-center justify-center gap-6">
+                    <div className="flex flex-col items-center gap-2">
+                      <label className="text-sm font-medium">练习题数</label>
+                      <div className="flex gap-2">
+                        <Button
+                          variant={practiceCount === 0 ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setPracticeCount(0)}
+                        >
+                          全部
+                        </Button>
+                        <Button
+                          variant={practiceCount === 5 ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setPracticeCount(5)}
+                        >
+                          5
+                        </Button>
+                        <Button
+                          variant={practiceCount === 10 ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setPracticeCount(10)}
+                        >
+                          10
+                        </Button>
+                        <Button
+                          variant={practiceCount === 15 ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setPracticeCount(15)}
+                        >
+                          15
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-col items-center gap-2">
+                      <label className="text-sm font-medium">答题模式</label>
+                      <div className="flex gap-2">
+                        <Button
+                          variant={answerMode === 'instant' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setAnswerMode('instant')}
+                        >
+                          逐题作答
+                        </Button>
+                        <Button
+                          variant={answerMode === 'batch' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setAnswerMode('batch')}
+                        >
+                          整卷提交
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <PracticeSelector onSelectMode={handleStartPractice} />
 
                 <div className="mt-8 p-4 rounded-xl bg-muted/50 text-center">
@@ -400,6 +465,7 @@ function AppContent() {
                 <PracticeSession
                   questions={getPracticeQuestions()}
                   mode={practiceMode}
+                  answerMode={answerMode}
                   onComplete={handlePracticeComplete}
                   onExit={handleExitPractice}
                 />

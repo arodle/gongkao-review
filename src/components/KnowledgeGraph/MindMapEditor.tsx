@@ -88,7 +88,7 @@ interface NodeTreeItemProps {
   children: KnowledgeNodeRecord[];
   allNodes: KnowledgeNodeRecord[];
   level: number;
-  isExpanded: boolean;
+  expandedNodes: Set<string>;
   isPinned: boolean;
   onToggleExpand: (nodeId: string) => void;
   onSelect: (node: KnowledgeNodeRecord) => void;
@@ -104,7 +104,7 @@ function NodeTreeItem({
   children,
   allNodes,
   level,
-  isExpanded,
+  expandedNodes,
   isPinned,
   onToggleExpand,
   onSelect,
@@ -116,6 +116,7 @@ function NodeTreeItem({
 }: NodeTreeItemProps) {
   const hasChildren = children.length > 0;
   const isSelected = selectedNodeId === node.id;
+  const isExpanded = expandedNodes.has(node.id);
   const { getNodeStats } = useAppStore();
   const stats = getNodeStats(node.id);
 
@@ -231,7 +232,7 @@ function NodeTreeItem({
                 children={allNodes.filter(n => n.parent_id === child.id)}
                 allNodes={allNodes}
                 level={level + 1}
-                isExpanded={isExpanded}
+                expandedNodes={expandedNodes}
                 isPinned={false}
                 onToggleExpand={onToggleExpand}
                 onSelect={onSelect}
@@ -542,7 +543,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
                     children={nodes.filter(n => n.parent_id === node.id)}
                     allNodes={nodes}
                     level={0}
-                    isExpanded={expandedNodes.has(node.id)}
+                    expandedNodes={expandedNodes}
                     isPinned={pinnedNodes.has(node.id)}
                     onToggleExpand={toggleExpand}
                     onSelect={handleSelectNode}
