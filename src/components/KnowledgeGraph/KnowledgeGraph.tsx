@@ -16,6 +16,9 @@ import {
   RefreshCw,
   Info,
   X,
+  List,
+  BookOpen,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,16 +32,9 @@ import {
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Progress } from '@/components/ui/progress';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Popover,
   PopoverContent,
@@ -54,27 +50,91 @@ interface FlyingDot {
   targetNodeId: string;
 }
 
-interface KnowledgeGraphProps {
-  onNodeSelect?: (node: KnowledgeNodeRecord) => void;
+interface WrongAnswerListProps {
+  nodeId: string;
+  onClose: () => void;
 }
 
-export function KnowledgeGraph({ onNodeSelect }: KnowledgeGraphProps) {
+function WrongAnswerList({ nodeId, onClose }: WrongAnswerListProps) {
+  const { getWrongAnswersByNodeId, questionBank, getNodeById } = useAppStore();
+  const wrongAnswers = getWrongAnswersByNodeId(nodeId);
+  const node = getNodeById(nodeId);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      className="absolute right-4 top-4 bottom-4 w-80 bg-white dark:bg-slate-800 rounded-lg shadow-xl border overflow-hidden flex flex-col z-50"
+    >
+      <div className="p-4 border-b flex items-center justify-between bg-slate-50 dark:bg-slate-900">
+        <div className="flex items-center gap-2">
+          <List className="h-5 w-5 text-slate-500" />
+          <span className="font-semibold">{node?.name} - 错题列表</span>
+        </div>
+        <Button variant="ghost" size="sm" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      <ScrollArea className="flex-1">
+        <div className="p-4 space-y-3">
+          {wrongAnswers.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <BookOpen className="h-12 w-12 mx-auto mb-3 opacity-20" />
+              <p>暂无错题记录</p>
+            </div>
+          ) : (
+            wrongAnswers.map((record) => {
+              const question = questionBank.find(q => q.id === record.question_id);
+              return (
+                <div key={record.id} className="p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border">
+                  <p className="text-sm mb-2 line-clamp-3">{question?.content || '题目已删除'}</p>
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{new Date(record.updated_at).toLocaleDateString()}</span>
+                    <span>{Math.floor(record.answer_time / 1000)}s</span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </ScrollArea>
+    </motion.div>
+  );
+}
+
+interface KnowledgeGraphProps {
+  onNodeSelect?: (node: KnowledgeNodeRecord) => void;
+  onTargetedPractice?: (nodeId: string) => void;
+}
+
+export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
   const [selectedNode, setSelectedNode] = useState<KnowledgeNodeRecord | null>(null);
   const [focusMode, setFocusMode] = useState(false);
   const [flyingDots, setFlyingDots] = useState<FlyingDot[]>([]);
   const [isReady, setIsReady] = useState(false);
+  const [showWrongAnswerList, setShowWrongAnswerList] = useState<string | null>(null);
 
-  const { nodes, isInitialized, updateNodePSScore, getNodeStats, getNodePSHistory } = useAppStore();
+  const { nodes, isInitialized, updateNodePSScore, getNodeStats, getWrongAnswersByNodeId, psHistory, practiceRecords } = useAppStore();
+
+  const getNodeWrongCount = useCallback((nodeId: string): number => {
+    return getWrongAnswersByNodeId(nodeId).length;
+  }, [getWrongAnswersByNodeId]);
+
+  const hasNodeAnswered = useCallback((nodeId: string): boolean => {
+    return practiceRecords.some(r => r.source_node_ids.includes(nodeId));
+  }, [practiceRecords]);
 
   const graphData = useMemo(() => {
     if (!nodes.length) return { nodes: [], edges: [] };
 
     const graphNodes: NodeData[] = nodes.map(node => {
+      const hasAnswered = hasNodeAnswered(node.id);
       const colorConfig = focusMode
-        ? getPSColorWithFocus(node.ps_score, focusMode)
-        : getPSColor(node.ps_score);
+        ? getPSColorWithFocus(node.ps_score, focusMode, hasAnswered)
+        : getPSColor(node.ps_score, hasAnswered);
+      const wrongCount = getNodeWrongCount(node.id);
 
       return {
         id: node.id,
@@ -88,6 +148,8 @@ export function KnowledgeGraph({ onNodeSelect }: KnowledgeGraphProps) {
           pulse: colorConfig.pulse,
           opacity: colorConfig.opacity,
           stats: getNodeStats(node.id),
+          wrongCount,
+          hasAnswered,
         },
       };
     });
@@ -105,7 +167,7 @@ export function KnowledgeGraph({ onNodeSelect }: KnowledgeGraphProps) {
       }));
 
     return { nodes: graphNodes, edges: graphEdges };
-  }, [nodes, focusMode, getNodeStats]);
+  }, [nodes, focusMode, getNodeStats, getNodeWrongCount, hasNodeAnswered]);
 
   useEffect(() => {
     if (!containerRef.current || !isInitialized || nodes.length === 0) return;
@@ -133,6 +195,7 @@ export function KnowledgeGraph({ onNodeSelect }: KnowledgeGraphProps) {
                 if (type === 'subject') return 60;
                 if (type === 'knowledge') return 50;
                 if (type === 'subknowledge') return 40;
+                if (type === 'example') return 35;
                 return 32;
               },
               fill: (d: any) => d.data?.color || '#3b82f6',
@@ -266,6 +329,18 @@ export function KnowledgeGraph({ onNodeSelect }: KnowledgeGraphProps) {
     return nodes.filter(n => n.ps_score < 80);
   }, [nodes]);
 
+  const handleTargetedPractice = useCallback(() => {
+    if (selectedNode) {
+      onTargetedPractice?.(selectedNode.id);
+    }
+  }, [selectedNode, onTargetedPractice]);
+
+  const handleViewHistory = useCallback(() => {
+    if (selectedNode) {
+      setShowWrongAnswerList(selectedNode.id);
+    }
+  }, [selectedNode]);
+
   return (
     <div className="relative w-full h-full bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-lg overflow-hidden">
       <div ref={containerRef} className="w-full h-full" />
@@ -291,7 +366,7 @@ export function KnowledgeGraph({ onNodeSelect }: KnowledgeGraphProps) {
         ))}
       </AnimatePresence>
 
-      <div className="absolute top-4 left-4 flex flex-col gap-2">
+      <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -341,7 +416,7 @@ export function KnowledgeGraph({ onNodeSelect }: KnowledgeGraphProps) {
         </TooltipProvider>
       </div>
 
-      <div className="absolute top-4 right-4 flex flex-col gap-2">
+      <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -413,7 +488,11 @@ export function KnowledgeGraph({ onNodeSelect }: KnowledgeGraphProps) {
         </Popover>
       </div>
 
-      <div className="absolute bottom-4 left-4 flex items-center gap-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-lg px-4 py-2 shadow-lg">
+      <div className="absolute bottom-4 left-4 flex items-center gap-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-lg px-4 py-2 shadow-lg z-10">
+        <div className="flex items-center gap-1">
+          <div className="w-3 h-3 rounded-full bg-[#e5e7eb]" />
+          <span className="text-xs text-muted-foreground">未作答</span>
+        </div>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded-full bg-[#DC2626]" />
           <span className="text-xs text-muted-foreground">薄弱</span>
@@ -441,12 +520,18 @@ export function KnowledgeGraph({ onNodeSelect }: KnowledgeGraphProps) {
                 <Badge
                   variant="outline"
                   style={{
-                    backgroundColor: getPSColor(selectedNode.ps_score).background,
-                    color: 'white',
+                    backgroundColor: getPSColor(selectedNode.ps_score, hasNodeAnswered(selectedNode.id)).background,
+                    color: getPSColor(selectedNode.ps_score, hasNodeAnswered(selectedNode.id)).text,
                   }}
                 >
                   PS: {selectedNode.ps_score}
                 </Badge>
+                {getNodeWrongCount(selectedNode.id) > 0 && (
+                  <Badge variant="destructive" className="flex items-center gap-1">
+                    <X className="h-3 w-3" />
+                    {getNodeWrongCount(selectedNode.id)}
+                  </Badge>
+                )}
               </SheetTitle>
             </SheetHeader>
             <div className="mt-6 space-y-6">
@@ -456,11 +541,13 @@ export function KnowledgeGraph({ onNodeSelect }: KnowledgeGraphProps) {
                   value={(selectedNode.ps_score / 200) * 100}
                   className="h-2"
                   style={{
-                    '--progress-foreground': getPSColor(selectedNode.ps_score).background,
+                    '--progress-foreground': getPSColor(selectedNode.ps_score, hasNodeAnswered(selectedNode.id)).background,
                   } as React.CSSProperties}
                 />
                 <p className="text-xs text-muted-foreground">
-                  {selectedNode.ps_score < 80
+                  {!hasNodeAnswered(selectedNode.id)
+                    ? '未作答，点击开始练习'
+                    : selectedNode.ps_score < 80
                     ? '需要加强练习'
                     : selectedNode.ps_score < 150
                     ? '持续练习中'
@@ -505,11 +592,9 @@ export function KnowledgeGraph({ onNodeSelect }: KnowledgeGraphProps) {
                 <h4 className="text-sm font-medium">操作</h4>
                 <div className="flex flex-wrap gap-2">
                   <Button
-                    variant="outline"
+                    variant="default"
                     size="sm"
-                    onClick={() => {
-                      // Navigate to practice with this node
-                    }}
+                    onClick={handleTargetedPractice}
                   >
                     <Target className="h-4 w-4 mr-2" />
                     靶向练习
@@ -517,12 +602,10 @@ export function KnowledgeGraph({ onNodeSelect }: KnowledgeGraphProps) {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => {
-                      // View history
-                    }}
+                    onClick={handleViewHistory}
                   >
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    查看历史
+                    <List className="h-4 w-4 mr-2" />
+                    查看错题
                   </Button>
                 </div>
               </div>
@@ -530,6 +613,15 @@ export function KnowledgeGraph({ onNodeSelect }: KnowledgeGraphProps) {
           </SheetContent>
         </Sheet>
       )}
+
+      <AnimatePresence>
+        {showWrongAnswerList && (
+          <WrongAnswerList
+            nodeId={showWrongAnswerList}
+            onClose={() => setShowWrongAnswerList(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

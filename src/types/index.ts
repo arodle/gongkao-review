@@ -1,4 +1,4 @@
-export type NodeType = 'subject' | 'knowledge' | 'subknowledge' | 'angle';
+export type NodeType = 'subject' | 'knowledge' | 'subknowledge' | 'angle' | 'example';
 
 export interface KnowledgeNodeRecord {
   id: string;
@@ -53,6 +53,7 @@ export interface Question {
   options: QuestionOption[];
   correctAnswer: string;
   explanation: string;
+  images?: string[];
 }
 
 export interface QuestionOption {
@@ -66,6 +67,7 @@ export interface QuestionBankItem {
   options: QuestionOption[];
   correctAnswer: string;
   explanation: string;
+  images?: string[];
   linkedAngleId: string;
   linkedAngleName?: string;
   knowledgePath?: string;
@@ -104,6 +106,15 @@ export interface ExamPaper {
   createdAt: string;
   completedCount: number;
   avgScore: number;
+}
+
+export interface SimulatedPaperConfig {
+  id: string;
+  name: string;
+  region?: string;
+  position?: string;
+  subjectWeights: Record<string, number>;
+  createdAt: string;
 }
 
 export type AppTab = 'mindmap' | 'practice' | 'exam' | 'bank' | 'report' | 'center';

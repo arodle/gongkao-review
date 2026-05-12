@@ -47,11 +47,15 @@ interface AppState {
   getNodePSHistory: (nodeId: string) => Promise<PSHistoryRecord[]>;
   getQuestionByAngleId: (angleId: string) => QuestionBankItem[];
   getNodeStats: (nodeId: string) => { correct: number; wrong: number };
+  getWrongAnswersByNodeId: (nodeId: string) => PracticeRecord[];
   addQuestion: (question: QuestionBankItem) => void;
   updateQuestion: (question: QuestionBankItem) => void;
   deleteQuestion: (questionId: string) => void;
   addExamPaper: (paper: ExamPaper) => void;
   deleteExamPaper: (paperId: string) => void;
+  updateNode: (node: Partial<KnowledgeNodeRecord> & { id: string }) => void;
+  addNode: (node: Omit<KnowledgeNodeRecord, 'user_id' | 'updated_at' | 'ps_score' | 'last_practiced_at' | 'color_tag'>) => void;
+  deleteNode: (nodeId: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -181,6 +185,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     };
   },
 
+  getWrongAnswersByNodeId: (nodeId: string) => {
+    return get().practiceRecords.filter(r =>
+      r.source_node_ids.includes(nodeId) && !r.is_correct
+    );
+  },
+
   addQuestion: (question: QuestionBankItem) => {
     set(state => ({
       questionBank: [...state.questionBank, question],
@@ -211,6 +221,52 @@ export const useAppStore = create<AppState>((set, get) => ({
     set(state => ({
       examPapers: state.examPapers.filter(p => p.id !== paperId),
     }));
+  },
+
+  updateNode: (node) => {
+    set(state => ({
+      nodes: state.nodes.map(n =>
+        n.id === node.id ? { ...n, ...node } : n
+      ),
+    }));
+  },
+
+  addNode: (node) => {
+    const newNode: KnowledgeNodeRecord = {
+      ...node,
+      user_id: CURRENT_USER_ID,
+      ps_score: 50,
+      last_practiced_at: null,
+      color_tag: 'default',
+      updated_at: new Date().toISOString(),
+    };
+    set(state => ({
+      nodes: [...state.nodes, newNode],
+    }));
+  },
+
+  deleteNode: (nodeId: string) => {
+    set(state => {
+      const childIds = new Set<string>();
+      
+      const collectChildren = (id: string) => {
+        state.nodes.forEach(n => {
+          if (n.parent_id === id) {
+            childIds.add(n.id);
+            collectChildren(n.id);
+          }
+        });
+      };
+      collectChildren(nodeId);
+      
+      const keepIds = new Set(state.nodes.map(n => n.id));
+      keepIds.delete(nodeId);
+      childIds.forEach(id => keepIds.delete(id));
+      
+      return {
+        nodes: state.nodes.filter(n => keepIds.has(n.id)),
+      };
+    });
   },
 }));
 

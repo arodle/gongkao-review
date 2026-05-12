@@ -49,12 +49,14 @@ function AppContent() {
     questionBank,
     getWeakNodes,
     getNodeStats,
+    getQuestionByAngleId,
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<AppTab>('mindmap');
   const [practiceMode, setPracticeMode] = useState<PracticeMode | null>(null);
   const [isPracticeActive, setIsPracticeActive] = useState(false);
   const [mindmapView, setMindmapView] = useState<'graph' | 'editor'>('graph');
+  const [practiceTargetNodeId, setPracticeTargetNodeId] = useState<string | null>(null);
 
   useEffect(() => {
     const handleOnline = () => useAppStore.getState().setOnlineStatus(true);
@@ -94,6 +96,14 @@ function AppContent() {
   const handleExitPractice = () => {
     setIsPracticeActive(false);
     setPracticeMode(null);
+    setPracticeTargetNodeId(null);
+  };
+
+  const handleTargetedPracticeFromNode = (nodeId: string) => {
+    setPracticeTargetNodeId(nodeId);
+    setPracticeMode('targeted');
+    setIsPracticeActive(true);
+    setActiveTab('practice');
   };
 
   const getPracticeQuestions = useCallback((): QuestionBankItem[] => {
@@ -102,8 +112,12 @@ function AppContent() {
     }
 
     if (practiceMode === 'targeted') {
-      const weakIds = new Set(weakNodes.map(n => n.id));
-      return questionBank.filter(q => weakIds.has(q.linkedAngleId));
+      if (practiceTargetNodeId) {
+        return getQuestionByAngleId(practiceTargetNodeId);
+      } else {
+        const weakIds = new Set(weakNodes.map(n => n.id));
+        return questionBank.filter(q => weakIds.has(q.linkedAngleId));
+      }
     }
 
     if (practiceMode === 'sequence') {
@@ -111,7 +125,7 @@ function AppContent() {
     }
 
     return [...questionBank].sort(() => Math.random() - 0.5);
-  }, [practiceMode, questionBank, weakNodes]);
+  }, [practiceMode, questionBank, weakNodes, practiceTargetNodeId, getQuestionByAngleId]);
 
   if (!isInitialized) {
     return (
@@ -313,7 +327,7 @@ function AppContent() {
                 {/* Content */}
                 <div className="flex-1 overflow-hidden">
                   {mindmapView === 'graph' ? (
-                    <KnowledgeGraph />
+                    <KnowledgeGraph onTargetedPractice={handleTargetedPracticeFromNode} />
                   ) : (
                     <MindMapEditor />
                   )}

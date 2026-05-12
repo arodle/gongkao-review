@@ -3,10 +3,7 @@ import type { NextConfig } from 'next';
 const isStatic = process.env.BUILD_MODE === 'static';
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ['*.dev.coze.site', '*.agent-sandbox-bj-a2-gw.trae.cn', 'localhost'],
-  experimental: {
-    turbo: false,
-  },
+  allowedDevOrigins: ['*.dev.coze.site', '*.agent-sandbox-bj-a2-gw.trae.cn', 'localhost', '127.0.0.1'],
   images: {
     unoptimized: isStatic,
     remotePatterns: [
