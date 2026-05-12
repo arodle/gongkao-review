@@ -80,7 +80,12 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ questionBank: result.questionBank });
       } else {
         const { SAMPLE_QUESTION_BANK } = await import('@/lib/sample-data');
-        set({ questionBank: SAMPLE_QUESTION_BANK });
+        // 确保所有题目都有images字段
+        const questionBankWithImages = SAMPLE_QUESTION_BANK.map(q => ({
+          ...q,
+          images: q.images || []
+        }));
+        set({ questionBank: questionBankWithImages });
       }
 
       const records = await db.practice_records.where('user_id').equals(CURRENT_USER_ID).toArray();
@@ -309,8 +314,10 @@ async function seedInitialData() {
 
   await db.knowledge_nodes.bulkAdd(nodesToAdd);
 
+  // 确保所有题目都有images字段
   const bankItems: QuestionBankItem[] = SAMPLE_QUESTION_BANK.map(item => ({
     ...item,
+    images: item.images || [],
     createdAt: item.createdAt,
   }));
 

@@ -20,6 +20,8 @@ export interface Question {
   options: QuestionOption[];
   correctAnswer: string;
   explanation: string;
+  /** 解析图片URL列表 */
+  images?: string[];
 }
 
 export interface QuestionOption {
@@ -34,6 +36,8 @@ export interface QuestionBankItem {
   options: QuestionOption[];
   correctAnswer: string;
   explanation: string;
+  /** 解析图片URL列表 */
+  images?: string[];
   /** 关联的出题角度ID */
   linkedAngleId: string;
   /** 关联的出题角度名称 */
@@ -59,6 +63,8 @@ export interface PracticeQuestion {
   options: QuestionOption[];
   correctAnswer: string;
   explanation: string;
+  /** 解析图片URL列表 */
+  images?: string[];
   linkedAngleId: string;
   linkedAngleName: string;
 }

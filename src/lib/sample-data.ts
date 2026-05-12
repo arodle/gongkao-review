@@ -51,6 +51,7 @@ export const SAMPLE_MIND_MAP: KnowledgeNode = {
                   ],
                   correctAnswer: 'A',
                   explanation: '"格物"在宋明理学中意为推究事物之理，是认识论的核心概念。朱熹强调通过穷尽事物之理来获取知识。',
+                  images: [],
                 },
                 {
                   id: 'q_2',
@@ -63,6 +64,7 @@ export const SAMPLE_MIND_MAP: KnowledgeNode = {
                   ],
                   correctAnswer: 'A',
                   explanation: '文段核心围绕"文化是灵魂"展开，强调文化对民族的重要性，属于主旨概括题的典型解题思路。',
+                  images: [],
                 },
               ],
               children: [],
