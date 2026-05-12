@@ -113,7 +113,8 @@ export function QuestionCard({
     }, 100);
   }, [answerMode, showResult, question, startTime, onAnswer, onSelectAnswer]);
 
-  const isCorrect = (answerMode === 'batch' ? userAnswer : selectedOption) === question.correctAnswer;
+  // In batch mode, we never show results during practice - only after submit
+  const isCorrect = answerMode === 'batch' ? false : (selectedOption || userAnswer) === question.correctAnswer;
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -153,7 +154,10 @@ export function QuestionCard({
       />
 
       <Card className={`border-2 transition-colors ${
-        shouldShowResult
+        // In batch mode during practice, never show result
+        answerMode === 'batch' && !hasAnswered
+          ? 'border-transparent'
+          : shouldShowResult
           ? isCorrect
             ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
             : 'border-red-500 bg-red-50 dark:bg-red-900/20'
@@ -173,7 +177,12 @@ export function QuestionCard({
           let optionClass = 'border-2 hover:border-primary hover:bg-accent transition-all';
           const currentAnswer = answerMode === 'batch' ? userAnswer : selectedOption;
 
-          if (shouldShowResult) {
+          // In batch mode during practice, don't show any result styling
+          if (answerMode === 'batch' && !hasAnswered) {
+            if (currentAnswer === option.label) {
+              optionClass = 'border-primary bg-primary/10';
+            }
+          } else if (shouldShowResult) {
             if (option.label === question.correctAnswer) {
               optionClass = 'border-green-500 bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300';
             } else if (option.label === currentAnswer && !isCorrect) {
@@ -188,20 +197,21 @@ export function QuestionCard({
           return (
             <motion.button
               key={option.label}
-              whileHover={!shouldShowResult ? { scale: 1.01 } : {}}
-              whileTap={!shouldShowResult ? { scale: 0.99 } : {}}
+              whileHover={!shouldShowResult && !(answerMode === 'batch' && !hasAnswered) ? { scale: 1.01 } : {}}
+              whileTap={!shouldShowResult && !(answerMode === 'batch' && !hasAnswered) ? { scale: 0.99 } : {}}
               onClick={() => handleSelectOption(option.label)}
-              disabled={shouldShowResult}
+              disabled={shouldShowResult || (answerMode === 'batch' && !hasAnswered)}
               className={`w-full p-4 rounded-xl text-left flex items-start gap-3 ${optionClass}`}
             >
               <span className="flex-shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center font-semibold">
                 {option.label}
               </span>
               <span className="flex-1 pt-1">{option.text}</span>
-              {shouldShowResult && option.label === question.correctAnswer && (
+              {/* Only show result icons in instant mode or after submission */}
+              {answerMode !== 'batch' && shouldShowResult && option.label === question.correctAnswer && (
                 <CheckCircle2 className="h-6 w-6 text-green-500 flex-shrink-0" />
               )}
-              {shouldShowResult && option.label === currentAnswer && !isCorrect && (
+              {answerMode !== 'batch' && shouldShowResult && option.label === currentAnswer && !isCorrect && (
                 <XCircle className="h-6 w-6 text-red-500 flex-shrink-0" />
               )}
             </motion.button>
@@ -289,14 +299,14 @@ export function QuestionCard({
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           ) : (
+            // 最后一题显示提交按钮
             <Button
               variant="default"
               onClick={onSubmit}
-              disabled={answerMode === 'instant' && !hasAnswered}
               className="bg-green-600 hover:bg-green-700"
             >
               <Send className="h-4 w-4 mr-1" />
-              提交
+              提交整卷
             </Button>
           )}
         </div>
@@ -636,6 +646,8 @@ function PracticeComplete({ results, onExit, elapsedTime }: { results: any[]; on
   const correctCount = results.filter(r => r.isCorrect).length;
   const totalCount = results.length;
   const accuracy = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
+  const [filter, setFilter] = useState<'all' | 'wrong'>('all');
+  const [selectedQuestion, setSelectedQuestion] = useState<number | null>(null);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -643,12 +655,17 @@ function PracticeComplete({ results, onExit, elapsedTime }: { results: any[]; on
     return `${mins}分${secs}秒`;
   };
 
+  const filteredResults = filter === 'all' 
+    ? results 
+    : results.filter(r => !r.isCorrect);
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="max-w-2xl mx-auto p-6"
+      className="max-w-4xl mx-auto p-6 space-y-6"
     >
+      {/* 成绩概览 */}
       <Card className="border-2 border-primary">
         <CardContent className="p-8 text-center space-y-6">
           <div className="text-6xl font-bold text-primary">{accuracy}%</div>
@@ -669,43 +686,163 @@ function PracticeComplete({ results, onExit, elapsedTime }: { results: any[]; on
           </div>
 
           <Progress value={accuracy} className="h-3" />
-
-          {results.length > 0 && (
-            <div className="mt-6">
-              <h3 className="font-semibold mb-3 text-left">答题详情</h3>
-              <ScrollArea className="h-48 border rounded-lg p-3">
-                <div className="space-y-2">
-                  {results.map((result, idx) => (
-                    <div key={idx} className={`flex items-center justify-between p-2 rounded ${
-                      result.isCorrect 
-                        ? 'bg-green-50 dark:bg-green-900/20'
-                        : 'bg-red-50 dark:bg-red-900/20'
-                    }`}>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{idx + 1}.</span>
-                        <span className="text-sm truncate max-w-xs">
-                          {result.question?.content?.substring(0, 50)}...
-                        </span>
-                      </div>
-                      {result.isCorrect ? (
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
-                      ) : (
-                        <XCircle className="h-5 w-5 text-red-500" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </div>
-          )}
-
-          <div className="pt-4 flex gap-4 justify-center">
-            <Button size="lg" onClick={onExit}>
-              返回练习选择
-            </Button>
-          </div>
         </CardContent>
       </Card>
+
+      {/* 题号列表 */}
+      <Card>
+        <CardContent className="p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-lg">答题详情</h3>
+            <div className="flex gap-2">
+              <Button
+                variant={filter === 'all' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setFilter('all')}
+              >
+                全部 ({totalCount})
+              </Button>
+              <Button
+                variant={filter === 'wrong' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setFilter('wrong')}
+                className={filter === 'wrong' ? 'bg-red-500 hover:bg-red-600' : ''}
+              >
+                只看错题 ({totalCount - correctCount})
+              </Button>
+            </div>
+          </div>
+
+          {/* 题号网格 */}
+          <div className="grid grid-cols-10 gap-2">
+            {results.map((result, idx) => {
+              const isCorrect = result.isCorrect;
+              return (
+                <button
+                  key={idx}
+                  onClick={() => setSelectedQuestion(selectedQuestion === idx ? null : idx)}
+                  className={`
+                    aspect-square rounded-lg flex items-center justify-center font-semibold text-sm
+                    transition-all hover:scale-105
+                    ${isCorrect 
+                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200' 
+                      : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200'
+                    }
+                    ${selectedQuestion === idx ? 'ring-2 ring-primary scale-105' : ''}
+                  `}
+                >
+                  {idx + 1}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* 图例 */}
+          <div className="flex gap-6 text-sm justify-center">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-green-500"></div>
+              <span>正确</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-red-500"></div>
+              <span>错误</span>
+            </div>
+          </div>
+
+          {/* 选中题目的详情 */}
+          {selectedQuestion !== null && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="border-t pt-4 mt-4"
+            >
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold">
+                    第 {selectedQuestion + 1} 题
+                    <Badge 
+                      variant={results[selectedQuestion].isCorrect ? 'success' : 'destructive'}
+                      className="ml-2"
+                    >
+                      {results[selectedQuestion].isCorrect ? '正确' : '错误'}
+                    </Badge>
+                  </h4>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedQuestion(null)}
+                  >
+                    关闭
+                  </Button>
+                </div>
+                
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">题目内容：</p>
+                  <p className="text-sm whitespace-pre-line">{results[selectedQuestion].question?.content}</p>
+                  
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">选项：</p>
+                    {results[selectedQuestion].question?.options.map((opt: any) => {
+                      const isCorrectOption = opt.label === results[selectedQuestion].question?.correctAnswer;
+                      const isUserAnswer = opt.label === results[selectedQuestion].selectedAnswer;
+                      
+                      return (
+                        <div 
+                          key={opt.label}
+                          className={`p-3 rounded-lg border ${
+                            isCorrectOption 
+                              ? 'border-green-500 bg-green-50 dark:bg-green-900/20' 
+                              : isUserAnswer && !results[selectedQuestion].isCorrect
+                              ? 'border-red-500 bg-red-50 dark:bg-red-900/20 line-through'
+                              : 'border-gray-200 dark:border-gray-700'
+                          }`}
+                        >
+                          <span className="font-semibold">{opt.label}.</span> {opt.text}
+                          {isCorrectOption && <span className="ml-2 text-green-600">✓ 正确答案</span>}
+                          {isUserAnswer && !isCorrectOption && <span className="ml-2 text-red-600">✗ 你的答案</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {results[selectedQuestion].question?.explanation && (
+                    <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Lightbulb className="h-4 w-4 text-amber-600" />
+                        <span className="text-sm font-medium">解析</span>
+                      </div>
+                      <p className="text-sm">{results[selectedQuestion].question?.explanation}</p>
+                    </div>
+                  )}
+
+                  {results[selectedQuestion].question?.images?.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">解析图片：</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {results[selectedQuestion].question?.images.map((img: string, idx: number) => (
+                          <img 
+                            key={idx} 
+                            src={img} 
+                            alt={`解析图片 ${idx + 1}`} 
+                            className="rounded-lg border max-h-48 object-contain" 
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 操作按钮 */}
+      <div className="flex gap-4 justify-center">
+        <Button size="lg" onClick={onExit}>
+          返回练习选择
+        </Button>
+      </div>
     </motion.div>
   );
 }
