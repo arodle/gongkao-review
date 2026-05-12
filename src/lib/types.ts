@@ -1,5 +1,22 @@
 export type NodeType = 'subject' | 'knowledge' | 'subknowledge' | 'angle';
 
+/** 数据库中存储的知识节点记录 */
+export interface KnowledgeNodeRecord {
+  id: string;
+  user_id: string;
+  name: string;
+  parent_id: string | null;
+  pos_x: number;
+  pos_y: number;
+  ps_score: number;
+  last_practiced_at: string | null;
+  color_tag: string;
+  node_type: NodeType;
+  content?: string;
+  annotation?: string;
+  updated_at: string;
+}
+
 export interface KnowledgeNode {
   id: string;
   name: string;
@@ -42,7 +59,7 @@ export interface QuestionBankItem {
   linkedAngleId: string;
   /** 关联的出题角度名称 */
   linkedAngleName: string;
-  /** 知识点路径，如 "行测/言语理解与表达/片段阅读/主旨概括题" */
+  /** 知识点路径，如 "行测》言语理解与表达》片段阅读》主旨概括题" */
   knowledgePath: string;
   /** 来源：mindmap-inline / practice / exam / upload */
   source: string;

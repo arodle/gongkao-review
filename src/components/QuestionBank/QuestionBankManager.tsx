@@ -46,7 +46,8 @@ interface QuestionFormData {
   explanation: string;
   images: string[];
   linkedAngleId: string;
-  difficulty: 'easy' | 'medium' | 'hard';
+  linkedAngleName: string;
+  knowledgePath: string;
   type: 'real' | 'simulated';
 }
 
@@ -62,7 +63,8 @@ const initialFormData: QuestionFormData = {
   explanation: '',
   images: [],
   linkedAngleId: '',
-  difficulty: 'medium',
+  linkedAngleName: '',
+  knowledgePath: '',
   type: 'real',
 };
 
@@ -88,7 +90,6 @@ export function QuestionBankManager() {
   const { questionBank, nodes, addQuestion, updateQuestion, deleteQuestion, addExamPaper } = useAppStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'real' | 'simulated'>('all');
-  const [filterDifficulty, setFilterDifficulty] = useState<'all' | 'easy' | 'medium' | 'hard'>('all');
   const [showQuestionDialog, setShowQuestionDialog] = useState(false);
   const [showPaperDialog, setShowPaperDialog] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<QuestionBankItem | null>(null);
@@ -144,12 +145,8 @@ export function QuestionBankManager() {
       result = result.filter(q => q.type === filterType);
     }
 
-    if (filterDifficulty !== 'all') {
-      result = result.filter(q => q.difficulty === filterDifficulty);
-    }
-
     return result;
-  }, [questionBank, searchQuery, filterType, filterDifficulty]);
+  }, [questionBank, searchQuery, filterType]);
 
   const realQuestions = useMemo(() => {
     return questionBank.filter(q => q.type === 'real');
@@ -169,7 +166,8 @@ export function QuestionBankManager() {
         explanation: question.explanation,
         images: question.images || [],
         linkedAngleId: question.linkedAngleId || '',
-        difficulty: question.difficulty || 'medium',
+        linkedAngleName: question.linkedAngleName || '',
+        knowledgePath: question.knowledgePath || '',
         type: question.type || 'real',
       });
     } else {
@@ -190,7 +188,8 @@ export function QuestionBankManager() {
       explanation: formData.explanation,
       images: formData.images,
       linkedAngleId: formData.linkedAngleId,
-      difficulty: formData.difficulty,
+      linkedAngleName: formData.linkedAngleName,
+      knowledgePath: formData.knowledgePath,
       type: formData.type,
       createdAt: editingQuestion?.createdAt || new Date().toISOString(),
     };
@@ -300,9 +299,6 @@ export function QuestionBankManager() {
     total: questionBank.length,
     real: realQuestions.length,
     simulated: simulatedQuestions.length,
-    easy: questionBank.filter(q => q.difficulty === 'easy').length,
-    medium: questionBank.filter(q => q.difficulty === 'medium').length,
-    hard: questionBank.filter(q => q.difficulty === 'hard').length,
   }), [questionBank, realQuestions, simulatedQuestions]);
 
   return (
@@ -355,16 +351,6 @@ export function QuestionBankManager() {
             <option value="real">真题</option>
             <option value="simulated">模拟题</option>
           </select>
-          <select
-            value={filterDifficulty}
-            onChange={(e) => setFilterDifficulty(e.target.value as any)}
-            className="border rounded px-2 py-1.5 text-sm bg-background"
-          >
-            <option value="all">全部难度</option>
-            <option value="easy">简单</option>
-            <option value="medium">中等</option>
-            <option value="hard">困难</option>
-          </select>
         </div>
 
         <div className="flex items-center gap-4 text-xs">
@@ -410,20 +396,8 @@ export function QuestionBankManager() {
                           >
                             {question.type === 'real' ? '真题' : '模拟题'}
                           </Badge>
-                          <Badge
-                            variant={
-                              question.difficulty === 'easy' ? 'success' :
-                              question.difficulty === 'medium' ? 'warning' : 'destructive'
-                            }
-                            className="text-xs"
-                          >
-                            {
-                              question.difficulty === 'easy' ? '简单' :
-                              question.difficulty === 'medium' ? '中等' : '困难'
-                            }
-                          </Badge>
-                          <span className="text-xs text-muted-foreground truncate">
-                            {getLinkedNodeName(question.linkedAngleId)}
+                          <span className="text-xs text-muted-foreground truncate" title={question.knowledgePath}>
+                            {question.knowledgePath || getLinkedNodeName(question.linkedAngleId)}
                           </span>
                         </div>
                         <p className="text-sm line-clamp-2 mb-2">{question.content}</p>
@@ -542,37 +516,70 @@ export function QuestionBankManager() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">题目难度</label>
-              <div className="flex gap-4">
-                {(['easy', 'medium', 'hard'] as const).map((level) => (
-                  <label key={level} className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="difficulty"
-                      value={level}
-                      checked={formData.difficulty === level}
-                      onChange={(e) => setFormData({ ...formData, difficulty: level })}
-                    />
-                    {level === 'easy' ? '简单' : level === 'medium' ? '中等' : '困难'}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-2">
               <label className="text-sm font-medium">关联知识点</label>
               <select
                 value={formData.linkedAngleId}
-                onChange={(e) => setFormData({ ...formData, linkedAngleId: e.target.value })}
+                onChange={(e) => {
+                  const selectedNodeId = e.target.value;
+                  const selectedNode = nodes.find(n => n.id === selectedNodeId);
+                  
+                  if (selectedNode) {
+                    const getNodePath = (nodeId: string): string[] => {
+                      const parts: string[] = [];
+                      let current = nodes.find(n => n.id === nodeId);
+                      while (current) {
+                        parts.unshift(current.name);
+                        current = current.parent_id
+                          ? nodes.find(n => n.id === current!.parent_id)
+                          : undefined;
+                      }
+                      return parts;
+                    };
+                    
+                    const pathParts = getNodePath(selectedNodeId);
+                    const knowledgePath = pathParts.join('》');
+                    
+                    setFormData({ 
+                      ...formData, 
+                      linkedAngleId: selectedNodeId,
+                      linkedAngleName: selectedNode.name,
+                      knowledgePath: knowledgePath
+                    });
+                  }
+                }}
                 className="w-full border rounded px-2 py-1.5 text-sm"
               >
                 <option value="">请选择知识点</option>
-                {nodes.map((node) => (
-                  <option key={node.id} value={node.id}>
-                    {node.name}
-                  </option>
-                ))}
+                {nodes
+                  .filter(node => node.node_type === 'angle')
+                  .map(node => {
+                    const getNodePath = (nodeId: string): string[] => {
+                      const parts: string[] = [];
+                      let current = nodes.find(n => n.id === nodeId);
+                      while (current) {
+                        parts.unshift(current.name);
+                        current = current.parent_id
+                          ? nodes.find(n => n.id === current!.parent_id)
+                          : undefined;
+                      }
+                      return parts;
+                    };
+                    const pathParts = getNodePath(node.id);
+                    const displayPath = pathParts.join('》');
+                    
+                    return (
+                      <option key={node.id} value={node.id}>
+                        {displayPath}
+                      </option>
+                    );
+                  })
+                }
               </select>
+              {formData.knowledgePath && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  完整路径：{formData.knowledgePath}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

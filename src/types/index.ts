@@ -72,7 +72,6 @@ export interface QuestionBankItem {
   linkedAngleName?: string;
   knowledgePath?: string;
   source?: string;
-  difficulty?: 'easy' | 'medium' | 'hard';
   type?: 'real' | 'simulated';
   createdAt: string;
 }
