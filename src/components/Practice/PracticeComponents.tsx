@@ -339,6 +339,22 @@ export function PracticeSession({ questions, mode, onComplete }: PracticeSession
   const [isComplete, setIsComplete] = useState(false);
   const { updateNodePSScore, addAnswer } = useAppStore();
 
+  if (!questions || questions.length === 0) {
+    return (
+      <div className="max-w-2xl mx-auto p-6">
+        <Card className="border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/20">
+          <CardContent className="p-8 text-center">
+            <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-amber-500" />
+            <h3 className="text-lg font-semibold mb-2">暂无练习题目</h3>
+            <p className="text-muted-foreground">
+              题库为空或没有符合当前筛选条件的题目
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const currentQuestion = questions[currentIndex];
 
   const handleAnswer = useCallback(async (selectedAnswer: string, isCorrect: boolean, answerTime: number) => {
