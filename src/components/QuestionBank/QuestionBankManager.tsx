@@ -33,6 +33,7 @@ import {
   Copy,
   Layers,
   Image as ImageIcon,
+  Lightbulb,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -436,6 +437,30 @@ export function QuestionBankManager() {
                             </span>
                           ))}
                         </div>
+                        
+                        {question.explanation && (
+                          <div className="mt-3 pt-3 border-t border-dashed">
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                              <Lightbulb className="h-3 w-3" />
+                              <span>解析</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground line-clamp-2">{question.explanation}</p>
+                          </div>
+                        )}
+                        
+                        {question.images && question.images.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-dashed">
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                              <ImageIcon className="h-3 w-3" />
+                              <span>解析图片</span>
+                            </div>
+                            <div className="flex gap-2 overflow-x-auto pb-2">
+                              {question.images.map((img, idx) => (
+                                <img key={idx} src={img} alt={`解析图 ${idx + 1}`} className="h-20 object-contain rounded border flex-shrink-0" />
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                         <Button

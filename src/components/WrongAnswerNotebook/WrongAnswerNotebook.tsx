@@ -55,6 +55,8 @@ interface WrongAnswerNote {
   linkedAngleName: string;
   note: string;
   createdAt: string;
+  explanation: string;
+  images: string[];
 }
 
 interface WrongAnswerItemProps {
@@ -129,9 +131,21 @@ function WrongAnswerItem({ item, isSelected, onSelect, isExpanded, onToggle }: W
                   </Badge>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground line-clamp-2">
-                {item.questionContent}
-              </p>
+              
+              {item.explanation && (
+                <div className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-900/30 p-2 rounded">
+                  <span className="font-medium">解析：</span>
+                  {item.explanation}
+                </div>
+              )}
+              
+              {item.images && item.images.length > 0 && (
+                <div className="grid grid-cols-2 gap-2">
+                  {item.images.map((img, idx) => (
+                    <img key={idx} src={img} alt={`解析图 ${idx + 1}`} className="max-h-24 object-contain rounded border" />
+                  ))}
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -184,6 +198,8 @@ export function WrongAnswerNotebook() {
         linkedAngleName: linkedNode?.name || '未分类',
         note: localNotes[record.id] || '',
         createdAt: record.updated_at,
+        explanation: question?.explanation || '',
+        images: question?.images || [],
       } as WrongAnswerNote;
     }).reverse();
   }, [practiceRecords, questionBank, nodes, localNotes]);
@@ -442,6 +458,25 @@ export function WrongAnswerNotebook() {
                   <span className="truncate">{selectedItem.nodePath}</span>
                 </div>
 
+                {selectedItem.explanation && (
+                  <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Lightbulb className="h-3 w-3 text-amber-600" />
+                      <span className="text-xs font-medium text-amber-700 dark:text-amber-300">解析</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedItem.explanation}
+                    </p>
+                    {selectedItem.images && selectedItem.images.length > 0 && (
+                      <div className="mt-3 grid grid-cols-1 gap-2">
+                        {selectedItem.images.map((img, idx) => (
+                          <img key={idx} src={img} alt={`解析图 ${idx + 1}`} className="max-h-48 object-contain rounded-lg border" />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground">
                     笔记内容
@@ -451,14 +486,14 @@ export function WrongAnswerNotebook() {
                       value={editingNote}
                       onChange={(e) => setEditingNote(e.target.value)}
                       placeholder="记录解题思路、相关知识点、易错点..."
-                      rows={10}
+                      rows={6}
                       className="resize-none text-sm"
                       autoFocus
                     />
                   ) : (
                     <div
                       className={cn(
-                        'min-h-[200px] p-3 rounded-lg border cursor-text',
+                        'min-h-[120px] p-3 rounded-lg border cursor-text',
                         editingNote || selectedItem.note
                           ? 'bg-muted border-transparent'
                           : 'bg-muted/30 border-dashed text-muted-foreground'
