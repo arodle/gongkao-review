@@ -367,79 +367,71 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
       </AnimatePresence>
 
       <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="secondary"
-                onClick={handleZoomIn}
-                className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-lg"
-              >
-                <ZoomIn className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>放大</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant="secondary"
+              onClick={handleZoomIn}
+              className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-lg"
+            >
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>放大</TooltipContent>
+        </Tooltip>
 
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="secondary"
-                onClick={handleZoomOut}
-                className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-lg"
-              >
-                <ZoomOut className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>缩小</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant="secondary"
+              onClick={handleZoomOut}
+              className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-lg"
+            >
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>缩小</TooltipContent>
+        </Tooltip>
 
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="secondary"
-                onClick={handleFitView}
-                className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-lg"
-              >
-                <Maximize2 className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>适应视图</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant="secondary"
+              onClick={handleFitView}
+              className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-lg"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>适应视图</TooltipContent>
+        </Tooltip>
       </div>
 
       <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant={focusMode ? 'default' : 'secondary'}
-                onClick={toggleFocusMode}
-                className={`shadow-lg ${
-                  focusMode
-                    ? 'bg-amber-500 hover:bg-amber-600'
-                    : 'bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm'
-                }`}
-              >
-                {focusMode ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{focusMode ? '退出焦点模式' : '进入焦点模式'}</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant={focusMode ? 'default' : 'secondary'}
+              onClick={toggleFocusMode}
+              className={`shadow-lg ${
+                focusMode
+                  ? 'bg-amber-500 hover:bg-amber-600'
+                  : 'bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm'
+              }`}
+            >
+              {focusMode ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{focusMode ? '退出焦点模式' : '进入焦点模式'}</TooltipContent>
+        </Tooltip>
 
         <Popover>
           <PopoverTrigger asChild>
