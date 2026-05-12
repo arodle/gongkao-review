@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/lib/stores/appStore';
 import type { QuestionBankItem } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -34,6 +35,7 @@ import {
   Layers,
   Image as ImageIcon,
   Lightbulb,
+  ZoomIn,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -100,6 +102,7 @@ export function QuestionBankManager() {
   const [selectedQuestions, setSelectedQuestions] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -456,7 +459,12 @@ export function QuestionBankManager() {
                             </div>
                             <div className="flex gap-2 overflow-x-auto pb-2">
                               {question.images.map((img, idx) => (
-                                <img key={idx} src={img} alt={`解析图 ${idx + 1}`} className="h-20 object-contain rounded border flex-shrink-0" />
+                                <div key={idx} className="relative group cursor-pointer" onClick={() => setPreviewImage(img)}>
+                                  <img src={img} alt={`解析图 ${idx + 1}`} className="h-20 object-contain rounded border flex-shrink-0" />
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all rounded border flex items-center justify-center">
+                                    <ZoomIn className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </div>
+                                </div>
                               ))}
                             </div>
                           </div>
@@ -777,6 +785,38 @@ export function QuestionBankManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AnimatePresence>
+        {previewImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+            onClick={() => setPreviewImage(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.8 }}
+              className="relative max-w-[90vw] max-h-[90vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={previewImage}
+                alt="预览图片"
+                className="max-w-full max-h-[90vh] object-contain rounded-lg"
+              />
+              <button
+                onClick={() => setPreviewImage(null)}
+                className="absolute top-2 right-2 bg-black/50 hover:bg-black/70 text-white rounded-full w-10 h-10 flex items-center justify-center transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

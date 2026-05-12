@@ -41,6 +41,7 @@ import {
   StickyNote,
   PanelRightClose,
   PanelRightOpen,
+  Lightbulb,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
