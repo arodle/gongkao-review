@@ -4,6 +4,9 @@ const isStatic = process.env.BUILD_MODE === 'static';
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['*.dev.coze.site'],
+  experimental: {
+    turbo: false,
+  },
   images: {
     unoptimized: isStatic,
     remotePatterns: [
