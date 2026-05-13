@@ -91,8 +91,8 @@ function AppContent() {
   };
 
   const handlePracticeComplete = (results: any) => {
-    setIsPracticeActive(false);
-    setPracticeMode(null);
+    // Do not auto-close practice session, let user view results
+    // The user will use the "返回练习选择" button to exit
   };
 
   const handleExitPractice = () => {
