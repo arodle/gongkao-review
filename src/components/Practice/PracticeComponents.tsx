@@ -197,10 +197,10 @@ export function QuestionCard({
           return (
             <motion.button
               key={option.label}
-              whileHover={!shouldShowResult && !(answerMode === 'batch' && !hasAnswered) ? { scale: 1.01 } : {}}
-              whileTap={!shouldShowResult && !(answerMode === 'batch' && !hasAnswered) ? { scale: 0.99 } : {}}
+              whileHover={!shouldShowResult ? { scale: 1.01 } : {}}
+              whileTap={!shouldShowResult ? { scale: 0.99 } : {}}
               onClick={() => handleSelectOption(option.label)}
-              disabled={shouldShowResult || (answerMode === 'batch' && !hasAnswered)}
+              disabled={shouldShowResult}
               className={`w-full p-4 rounded-xl text-left flex items-start gap-3 ${optionClass}`}
             >
               <span className="flex-shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center font-semibold">
