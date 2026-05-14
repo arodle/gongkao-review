@@ -175,7 +175,7 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export function WrongAnswerNotebook() {
-  const { practiceRecords, nodes, questionBank, updateNodeAnnotation } = useAppStore();
+  const { practiceRecords, nodes, questionBank, updateNode } = useAppStore();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterNode, setFilterNode] = useState<string>('all');
@@ -246,7 +246,7 @@ export function WrongAnswerNotebook() {
         questionId: record.question_id,
         questionContent: question?.content || '题目内容已不存在',
         correctAnswer: question?.correctAnswer || '未知',
-        userAnswer: record.selected_answer || '未记录',
+        userAnswer: (record as any).selected_answer || '未记录',
         nodePath: linkedNode ? (nodePathMap.get(linkedNode.id) || '未分类') : '未分类',
         linkedAngleId,
         linkedAngleName: linkedNode?.name || '未分类',

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { Graph, type GraphData, type NodeData, type EdgeData, type STDTime } from '@antv/g6';
+import { Graph, type GraphData, type NodeData, type EdgeData } from '@antv/g6';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/lib/stores/appStore';
 import { getPSColor, getPSColorWithFocus } from '@/lib/utils/colors';
@@ -228,7 +228,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
   const graphData = useMemo((): GraphData => {
     if (!nodes.length) return { nodes: [], edges: [] };
 
-    const graphNodes: NodeData<GraphNodeData>[] = nodes.map(node => {
+    const graphNodes: any[] = nodes.map(node => {
       const cachedStats = nodeStatsCache.get(node.id);
       const hasAnswered = cachedStats?.hasAnswered ?? false;
       const wrongCount = cachedStats?.wrongCount ?? 0;
@@ -297,26 +297,26 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
           console.warn('Failed to destroy previous graph:', e);
         }
 
-        const graph = new Graph<GraphNodeData>({
+        const graph = new Graph({
           container: containerRef.current,
           data: graphData,
           node: {
             style: {
-              size: (d: NodeData<GraphNodeData>) => {
+              size: (d: any) => {
                 const type = d.data?.nodeType;
                 return SIZE_MAP[type] ?? 32;
               },
-              fill: (d: NodeData<GraphNodeData>) => d.data?.color || '#3b82f6',
-              stroke: (d: NodeData<GraphNodeData>) => d.data?.borderColor || '#2563eb',
+              fill: (d: any) => d.data?.color || '#3b82f6',
+              stroke: (d: any) => d.data?.borderColor || '#2563eb',
               lineWidth: 2,
               radius: 8,
-              labelText: (d: NodeData<GraphNodeData>) => d.data?.label || '',
-              labelFill: (d: NodeData<GraphNodeData>) => d.data?.textColor || '#ffffff',
+              labelText: (d: any) => d.data?.label || '',
+              labelFill: (d: any) => d.data?.textColor || '#ffffff',
               labelFontSize: 11,
               labelFontWeight: 600,
               labelMaxWidth: 100,
               labelWordWrap: true,
-              opacity: (d: NodeData<GraphNodeData>) => d.data?.opacity ?? 1,
+              opacity: (d: any) => d.data?.opacity ?? 1,
               shadowColor: 'rgba(0,0,0,0.2)',
               shadowBlur: 8,
               shadowOffsetY: 2,
@@ -350,8 +350,8 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
           padding: 60,
         });
 
-        graph.on('node:click', (event: { target: { id?: string } }) => {
-          const nodeId = event.target?.id;
+        graph.on('node:click', (event: any) => {
+          const nodeId = (event as any)?.target?.id;
           if (!nodeId) return;
 
           const latestNodes = nodesRef.current;
@@ -435,14 +435,14 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
     if (!graphRef.current || !containerRef.current) return;
 
     try {
-      const viewportCenter = graphRef.current.getViewportCenter();
-      const nodeModel = graphRef.current.getElementModel(targetNodeId);
+      const viewportCenter = graphRef.current.getViewportCenter() as any;
+      const nodeModel = (graphRef.current as any).getElementModel(targetNodeId);
       
       if (!nodeModel) return;
 
-      const endPoint = graphRef.current.getCanvasByClient({
-        x: viewportCenter.x + (nodeModel.style?.x ?? 0) * graphRef.current.getZoom(),
-        y: viewportCenter.y + (nodeModel.style?.y ?? 0) * graphRef.current.getZoom(),
+      const endPoint = (graphRef.current as any).getCanvasByClient({
+        x: (viewportCenter as any).x + ((nodeModel as any).style?.x ?? 0) * (graphRef.current as any).getZoom(),
+        y: (viewportCenter as any).y + ((nodeModel as any).style?.y ?? 0) * (graphRef.current as any).getZoom(),
       });
 
       const rect = containerRef.current.getBoundingClientRect();
@@ -451,8 +451,8 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
         id: `dot-${Date.now()}`,
         startX: rect.width / 2,
         startY: rect.height / 2,
-        endX: viewportCenter.x,
-        endY: viewportCenter.y,
+        endX: (viewportCenter as any).x,
+        endY: (viewportCenter as any).y,
         targetNodeId,
       };
 

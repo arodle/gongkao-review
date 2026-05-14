@@ -52,7 +52,6 @@ import {
   ChevronRightIcon,
   Search,
   Pin,
-  Unpin,
   ZoomIn,
   ZoomOut,
   Maximize2,
@@ -454,7 +453,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
   const handleCopyNode = useCallback(async (node: KnowledgeNodeRecord) => {
     setAddForm({
       name: `${node.name} (副本)`,
-      type: node.node_type,
+      type: node.node_type as any,
     });
     setAddParentId(node.parent_id);
     setShowAddDialog(true);
@@ -674,7 +673,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
                             <p className="text-sm line-clamp-2">{q.content}</p>
                             <div className="mt-2 flex items-center gap-2">
                               <Badge variant="outline" className="text-xs">
-                                {q.knowledgePath.split('/').pop()}
+                                {(q.knowledgePath || '').split('/').pop()}
                               </Badge>
                             </div>
                           </div>

@@ -292,7 +292,7 @@ export function QuestionBankManager() {
             name: '上传的套卷',
             type: 'real',
             description: '通过文件上传的套卷',
-            questions: []
+            questions: [] as any[]
           };
           
           for (let i = 1; i < lines.length; i++) {

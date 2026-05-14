@@ -117,7 +117,7 @@ export interface SimulatedPaperConfig {
   createdAt: string;
 }
 
-export type AppTab = 'mindmap' | 'practice' | 'exam' | 'bank' | 'report' | 'center';
+export type AppTab = 'mindmap' | 'practice' | 'exam' | 'bank' | 'wrongbook' | 'report' | 'center';
 
 export interface PSColorConfig {
   background: string;
