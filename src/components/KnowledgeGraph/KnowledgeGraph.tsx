@@ -41,6 +41,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 interface FlyingDot {
   id: string;
@@ -55,6 +56,29 @@ interface WrongAnswerListProps {
   nodeId: string;
   onClose: () => void;
 }
+
+interface GraphNodeData {
+  label: string;
+  psScore: number;
+  nodeType: string;
+  color: string;
+  borderColor: string;
+  textColor: string;
+  pulse: boolean;
+  opacity: number;
+  stats: { correct: number; wrong: number };
+  wrongCount: number;
+  hasAnswered: boolean;
+}
+
+const SIZE_MAP: Record<string, number> = {
+  subject: 60,
+  knowledge: 50,
+  subknowledge: 40,
+  example: 35,
+};
+
+const GLASS_STYLE = 'bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-lg';
 
 function WrongAnswerList({ nodeId, onClose }: WrongAnswerListProps) {
   const { getWrongAnswersByNodeId, questionBank, getNodeById } = useAppStore();
@@ -72,7 +96,7 @@ function WrongAnswerList({ nodeId, onClose }: WrongAnswerListProps) {
           <List className="h-5 w-5 text-slate-500" />
           <span className="font-semibold">{node?.name} - 错题列表</span>
         </div>
-        <Button variant="ghost" size="sm" onClick={onClose}>
+        <Button variant="ghost" size="sm" onClick={onClose} aria-label="关闭错题列表">
           <X className="h-4 w-4" />
         </Button>
       </div>
@@ -106,37 +130,58 @@ function WrongAnswerList({ nodeId, onClose }: WrongAnswerListProps) {
 interface KnowledgeGraphProps {
   onNodeSelect?: (node: KnowledgeNodeRecord) => void;
   onTargetedPractice?: (nodeId: string) => void;
+  autoShowWrongAnswer?: boolean;
 }
 
-export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGraphProps) {
+export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrongAnswer = false }: KnowledgeGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
+  const nodesRef = useRef<KnowledgeNodeRecord[]>([]);
   const [selectedNode, setSelectedNode] = useState<KnowledgeNodeRecord | null>(null);
   const [focusMode, setFocusMode] = useState(false);
   const [flyingDots, setFlyingDots] = useState<FlyingDot[]>([]);
   const [isReady, setIsReady] = useState(false);
   const [showWrongAnswerList, setShowWrongAnswerList] = useState<string | null>(null);
-  const [showNodeBadges, setShowNodeBadges] = useState<Record<string, { x: number; y: number; wrongCount: number }>>({});
 
   const { nodes, isInitialized, updateNodePSScore, getNodeStats, getWrongAnswersByNodeId, psHistory, practiceRecords } = useAppStore();
 
+  nodesRef.current = nodes;
+
+  const nodeStatsCache = useMemo(() => {
+    const cache = new Map<string, { correct: number; wrong: number; wrongCount: number; hasAnswered: boolean }>();
+    
+    nodes.forEach(node => {
+      const stats = getNodeStats(node.id);
+      const wrongCount = getWrongAnswersByNodeId(node.id).length;
+      const hasAnswered = practiceRecords.some(r => r.source_node_ids.includes(node.id));
+      cache.set(node.id, { ...stats, wrongCount, hasAnswered });
+    });
+    
+    return cache;
+  }, [nodes, getNodeStats, getWrongAnswersByNodeId, practiceRecords]);
+
   const getNodeWrongCount = useCallback((nodeId: string): number => {
-    return getWrongAnswersByNodeId(nodeId).length;
-  }, [getWrongAnswersByNodeId]);
+    return nodeStatsCache.get(nodeId)?.wrongCount ?? 0;
+  }, [nodeStatsCache]);
 
   const hasNodeAnswered = useCallback((nodeId: string): boolean => {
-    return practiceRecords.some(r => r.source_node_ids.includes(nodeId));
-  }, [practiceRecords]);
+    return nodeStatsCache.get(nodeId)?.hasAnswered ?? false;
+  }, [nodeStatsCache]);
 
-  const graphData = useMemo(() => {
+  const getNodeStatsData = useCallback((nodeId: string) => {
+    return nodeStatsCache.get(nodeId) ?? { correct: 0, wrong: 0, wrongCount: 0, hasAnswered: false };
+  }, [nodeStatsCache]);
+
+  const graphData = useMemo((): GraphData => {
     if (!nodes.length) return { nodes: [], edges: [] };
 
-    const graphNodes: NodeData[] = nodes.map(node => {
-      const hasAnswered = hasNodeAnswered(node.id);
+    const graphNodes: NodeData<GraphNodeData>[] = nodes.map(node => {
+      const cachedStats = nodeStatsCache.get(node.id);
+      const hasAnswered = cachedStats?.hasAnswered ?? false;
+      const wrongCount = cachedStats?.wrongCount ?? 0;
       const colorConfig = focusMode
         ? getPSColorWithFocus(node.ps_score, focusMode, hasAnswered)
         : getPSColor(node.ps_score, hasAnswered);
-      const wrongCount = getNodeWrongCount(node.id);
 
       return {
         id: node.id,
@@ -149,7 +194,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
           textColor: colorConfig.text,
           pulse: colorConfig.pulse,
           opacity: colorConfig.opacity,
-          stats: getNodeStats(node.id),
+          stats: { correct: cachedStats?.correct ?? 0, wrong: cachedStats?.wrong ?? 0 },
           wrongCount,
           hasAnswered,
         },
@@ -169,48 +214,56 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
       }));
 
     return { nodes: graphNodes, edges: graphEdges };
-  }, [nodes, focusMode, getNodeStats, getNodeWrongCount, hasNodeAnswered]);
+  }, [nodes, focusMode, nodeStatsCache]);
+
+  const structureChanged = useMemo(() => {
+    return nodes.length > 0;
+  }, [nodes.length]);
 
   useEffect(() => {
     if (!containerRef.current || !isInitialized || nodes.length === 0) return;
 
     let mounted = true;
+    let isInitializing = false;
 
     const initGraph = async () => {
+      if (isInitializing) return;
+      isInitializing = true;
+
       try {
         const { Graph } = await import('@antv/g6');
 
         if (!mounted || !containerRef.current) return;
 
-        if (graphRef.current) {
-          graphRef.current.destroy();
-          graphRef.current = null;
+        try {
+          if (graphRef.current) {
+            graphRef.current.destroy();
+            graphRef.current = null;
+          }
+        } catch (e) {
+          console.warn('Failed to destroy previous graph:', e);
         }
 
-        const graph = new Graph({
+        const graph = new Graph<GraphNodeData>({
           container: containerRef.current,
           data: graphData,
           node: {
             style: {
-              size: (d: any) => {
+              size: (d: NodeData<GraphNodeData>) => {
                 const type = d.data?.nodeType;
-                if (type === 'subject') return 60;
-                if (type === 'knowledge') return 50;
-                if (type === 'subknowledge') return 40;
-                if (type === 'example') return 35;
-                return 32;
+                return SIZE_MAP[type] ?? 32;
               },
-              fill: (d: any) => d.data?.color || '#3b82f6',
-              stroke: (d: any) => d.data?.borderColor || '#2563eb',
+              fill: (d: NodeData<GraphNodeData>) => d.data?.color || '#3b82f6',
+              stroke: (d: NodeData<GraphNodeData>) => d.data?.borderColor || '#2563eb',
               lineWidth: 2,
               radius: 8,
-              labelText: (d: any) => d.data?.label || '',
-              labelFill: (d: any) => d.data?.textColor || '#ffffff',
+              labelText: (d: NodeData<GraphNodeData>) => d.data?.label || '',
+              labelFill: (d: NodeData<GraphNodeData>) => d.data?.textColor || '#ffffff',
               labelFontSize: 11,
               labelFontWeight: 600,
               labelMaxWidth: 100,
               labelWordWrap: true,
-              opacity: (d: any) => d.data?.opacity ?? 1,
+              opacity: (d: NodeData<GraphNodeData>) => d.data?.opacity ?? 1,
               shadowColor: 'rgba(0,0,0,0.2)',
               shadowBlur: 8,
               shadowOffsetY: 2,
@@ -244,15 +297,18 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
           padding: 60,
         });
 
-        // 点击节点事件
-        graph.on('node:click', (event: any) => {
-          const nodeId = event.target.id;
-          const node = nodes.find(n => n.id === nodeId);
+        graph.on('node:click', (event: { target: { id?: string } }) => {
+          const nodeId = event.target?.id;
+          if (!nodeId) return;
+
+          const latestNodes = nodesRef.current;
+          const node = latestNodes.find(n => n.id === nodeId);
           if (node) {
             setSelectedNode(node);
             onNodeSelect?.(node);
-            // 直接显示错题列表，无需从侧边菜单操作
-            setShowWrongAnswerList(node.id);
+            if (autoShowWrongAnswer) {
+              setShowWrongAnswerList(node.id);
+            }
           }
         });
 
@@ -260,6 +316,8 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
         setIsReady(true);
       } catch (error) {
         console.error('Failed to initialize graph:', error);
+      } finally {
+        isInitializing = false;
       }
     };
 
@@ -267,23 +325,37 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
 
     return () => {
       mounted = false;
-      if (graphRef.current) {
-        graphRef.current.destroy();
-        graphRef.current = null;
+      try {
+        if (graphRef.current) {
+          graphRef.current.destroy();
+          graphRef.current = null;
+        }
+      } catch (e) {
+        console.warn('Failed to destroy graph on cleanup:', e);
       }
     };
-  }, [isInitialized, nodes.length, graphData, onNodeSelect]);
+  }, [isInitialized, nodes.length]);
 
   useEffect(() => {
     if (graphRef.current && isReady) {
       try {
-        graphRef.current.setData(graphData);
-        graphRef.current.render();
+        if (structureChanged) {
+          graphRef.current.setData(graphData);
+          graphRef.current.render();
+        } else {
+          const nodeData = graphData.nodes;
+          if (nodeData && nodeData.length > 0) {
+            graphRef.current.updateNodeData(
+              nodeData.map(n => ({ id: n.id, data: n.data }))
+            );
+            graphRef.current.draw();
+          }
+        }
       } catch (error) {
         console.error('Failed to update graph:', error);
       }
     }
-  }, [graphData, isReady]);
+  }, [graphData, isReady, structureChanged]);
 
   const handleZoomIn = useCallback(() => {
     if (graphRef.current) {
@@ -310,25 +382,39 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
   }, []);
 
   const triggerFlyingDot = useCallback((targetNodeId: string) => {
-    const targetNode = nodes.find(n => n.id === targetNodeId);
-    if (!targetNode || !containerRef.current) return;
+    if (!graphRef.current || !containerRef.current) return;
 
-    const rect = containerRef.current.getBoundingClientRect();
-    const dot: FlyingDot = {
-      id: `dot-${Date.now()}`,
-      startX: rect.width / 2,
-      startY: rect.height / 2,
-      endX: targetNode.pos_x,
-      endY: targetNode.pos_y,
-      targetNodeId,
-    };
+    try {
+      const viewportCenter = graphRef.current.getViewportCenter();
+      const nodeModel = graphRef.current.getElementModel(targetNodeId);
+      
+      if (!nodeModel) return;
 
-    setFlyingDots(prev => [...prev, dot]);
+      const endPoint = graphRef.current.getCanvasByClient({
+        x: viewportCenter.x + (nodeModel.style?.x ?? 0) * graphRef.current.getZoom(),
+        y: viewportCenter.y + (nodeModel.style?.y ?? 0) * graphRef.current.getZoom(),
+      });
 
-    setTimeout(() => {
-      setFlyingDots(prev => prev.filter(d => d.id !== dot.id));
-    }, 1000);
-  }, [nodes]);
+      const rect = containerRef.current.getBoundingClientRect();
+      
+      const dot: FlyingDot = {
+        id: `dot-${Date.now()}`,
+        startX: rect.width / 2,
+        startY: rect.height / 2,
+        endX: viewportCenter.x,
+        endY: viewportCenter.y,
+        targetNodeId,
+      };
+
+      setFlyingDots(prev => [...prev, dot]);
+
+      setTimeout(() => {
+        setFlyingDots(prev => prev.filter(d => d.id !== dot.id));
+      }, 1000);
+    } catch (error) {
+      console.warn('Failed to trigger flying dot:', error);
+    }
+  }, []);
 
   const weakNodes = useMemo(() => {
     return nodes.filter(n => n.ps_score < 80);
@@ -346,6 +432,11 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
     }
   }, [selectedNode]);
 
+  const selectedNodeStats = useMemo(() => {
+    if (!selectedNode) return null;
+    return getNodeStatsData(selectedNode.id);
+  }, [selectedNode, getNodeStatsData]);
+
   return (
     <TooltipProvider>
     <div className="relative w-full h-full bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-lg overflow-hidden">
@@ -362,10 +453,14 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
             onComplete={() => {
               setFlyingDots(prev => prev.filter(d => d.id !== dot.id));
               if (graphRef.current) {
-                graphRef.current.setElementState(dot.targetNodeId, ['selected']);
-                setTimeout(() => {
-                  graphRef.current?.setElementState(dot.targetNodeId, []);
-                }, 500);
+                try {
+                  graphRef.current.setElementState(dot.targetNodeId, ['selected']);
+                  setTimeout(() => {
+                    graphRef.current?.setElementState(dot.targetNodeId, []);
+                  }, 500);
+                } catch (e) {
+                  console.warn('Failed to set element state:', e);
+                }
               }
             }}
           />
@@ -379,7 +474,8 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
               size="icon"
               variant="secondary"
               onClick={handleZoomIn}
-              className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-lg"
+              className={GLASS_STYLE}
+              aria-label="放大"
             >
               <ZoomIn className="h-4 w-4" />
             </Button>
@@ -393,7 +489,8 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
               size="icon"
               variant="secondary"
               onClick={handleZoomOut}
-              className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-lg"
+              className={GLASS_STYLE}
+              aria-label="缩小"
             >
               <ZoomOut className="h-4 w-4" />
             </Button>
@@ -407,7 +504,8 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
               size="icon"
               variant="secondary"
               onClick={handleFitView}
-              className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-lg"
+              className={GLASS_STYLE}
+              aria-label="适应视图"
             >
               <Maximize2 className="h-4 w-4" />
             </Button>
@@ -423,11 +521,8 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
               size="icon"
               variant={focusMode ? 'default' : 'secondary'}
               onClick={toggleFocusMode}
-              className={`shadow-lg ${
-                focusMode
-                  ? 'bg-amber-500 hover:bg-amber-600'
-                  : 'bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm'
-              }`}
+              className={cn('shadow-lg', focusMode && 'bg-amber-500 hover:bg-amber-600')}
+              aria-label={focusMode ? '退出焦点模式' : '进入焦点模式'}
             >
               {focusMode ? (
                 <EyeOff className="h-4 w-4" />
@@ -444,7 +539,8 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
             <Button
               size="icon"
               variant="secondary"
-              className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow-lg relative"
+              className={cn(GLASS_STYLE, 'relative')}
+              aria-label="查看薄弱知识点"
             >
               <Target className="h-4 w-4" />
               {weakNodes.length > 0 && (
@@ -468,7 +564,11 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
                       onClick={() => {
                         setSelectedNode(node);
                         if (graphRef.current) {
-                          graphRef.current.focusElement(node.id);
+                          try {
+                            graphRef.current.focusElement(node.id);
+                          } catch (e) {
+                            console.warn('Failed to focus element:', e);
+                          }
                         }
                       }}
                       className="w-full text-left px-2 py-1 text-xs rounded hover:bg-accent transition-colors"
@@ -486,7 +586,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
         </Popover>
       </div>
 
-      <div className="absolute bottom-4 left-4 flex items-center gap-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-lg px-4 py-2 shadow-lg z-10">
+      <div className={cn('absolute bottom-4 left-4 flex items-center gap-4 rounded-lg px-4 py-2 z-10', GLASS_STYLE)}>
         <div className="flex items-center gap-1">
           <div className="w-3 h-3 rounded-full bg-[#e5e7eb]" />
           <span className="text-xs text-muted-foreground">未作答</span>
@@ -571,20 +671,22 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                  <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                    {getNodeStats(selectedNode.id).correct}
+              {selectedNodeStats && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                      {selectedNodeStats.correct}
+                    </div>
+                    <div className="text-xs text-green-600/70">正确次数</div>
                   </div>
-                  <div className="text-xs text-green-600/70">正确次数</div>
-                </div>
-                <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-                  <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-                    {getNodeStats(selectedNode.id).wrong}
+                  <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                    <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+                      {selectedNodeStats.wrong}
+                    </div>
+                    <div className="text-xs text-red-600/70">错误次数</div>
                   </div>
-                  <div className="text-xs text-red-600/70">错误次数</div>
                 </div>
-              </div>
+              )}
 
               <div className="space-y-2">
                 <h4 className="text-sm font-medium">操作</h4>
@@ -593,6 +695,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
                     variant="default"
                     size="sm"
                     onClick={handleTargetedPractice}
+                    aria-label="开始靶向练习"
                   >
                     <Target className="h-4 w-4 mr-2" />
                     靶向练习
@@ -601,6 +704,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
                     variant="outline"
                     size="sm"
                     onClick={handleViewHistory}
+                    aria-label="查看错题列表"
                   >
                     <List className="h-4 w-4 mr-2" />
                     查看错题
@@ -634,17 +738,10 @@ interface FlyingDotAnimationProps {
 }
 
 function FlyingDotAnimation({ startX, startY, endX, endY, onComplete }: FlyingDotAnimationProps) {
-  const controls = {
-    x: startX,
-    y: startY,
-    scale: 1,
-    opacity: 1,
-  };
-
   return (
     <motion.div
-      className="absolute w-4 h-4 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 shadow-lg"
-      initial={controls}
+      className="absolute w-4 h-4 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 shadow-lg pointer-events-none"
+      initial={{ x: startX, y: startY, scale: 1, opacity: 1 }}
       animate={{
         x: endX,
         y: endY,
@@ -672,8 +769,8 @@ export function useFlyingDotTrigger() {
       id: `dot-${Date.now()}-${Math.random()}`,
       startX: containerRect.width / 2,
       startY: containerRect.height / 2,
-      endX: 0,
-      endY: 0,
+      endX: containerRect.width / 2,
+      endY: containerRect.height / 2,
       targetNodeId,
     };
     setDots(prev => [...prev, dot]);
