@@ -127,6 +127,59 @@ function WrongAnswerList({ nodeId, onClose }: WrongAnswerListProps) {
   );
 }
 
+function WrongQuestionList({ angleId, angleName }: { angleId: string; angleName: string }) {
+  const { questionBank, practiceRecords } = useAppStore();
+
+  const wrongQuestions = useMemo(() => {
+    const wrongQIds = new Set<string>();
+    practiceRecords.forEach(record => {
+      if (!record.is_correct) {
+        wrongQIds.add(record.question_id);
+      }
+    });
+    return questionBank.filter(q => q.linkedAngleId === angleId && wrongQIds.has(q.id));
+  }, [practiceRecords, questionBank, angleId]);
+
+  if (wrongQuestions.length === 0) {
+    return <p className="text-xs text-gray-500">暂无错题记录</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      <h4 className="text-xs font-semibold text-red-600 mb-2 flex items-center gap-1">
+        <X className="h-3.5 w-3.5" />
+        「{angleName}」错题列表
+      </h4>
+      {wrongQuestions.map((q, idx) => (
+        <div key={q.id} className="p-2 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800 space-y-1.5">
+          <p className="text-[11px] font-medium text-gray-700 dark:text-gray-300 whitespace-pre-line">
+            {idx + 1}. {q.content}
+          </p>
+          <div className="grid grid-cols-2 gap-1">
+            {q.options.map((opt) => (
+              <div
+                key={opt.label}
+                className={cn(
+                  'text-[10px] px-1.5 py-1 rounded',
+                  opt.label === q.correctAnswer
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 font-medium'
+                    : 'bg-gray-50 dark:bg-gray-800 text-gray-500',
+                )}
+              >
+                {opt.label}. {opt.text}
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-gray-500">正确答案：<span className="text-green-600 font-medium">{q.correctAnswer}</span></p>
+          {q.explanation && (
+            <p className="text-[10px] text-gray-400 italic">{q.explanation}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 interface KnowledgeGraphProps {
   onNodeSelect?: (node: KnowledgeNodeRecord) => void;
   onTargetedPractice?: (nodeId: string) => void;
@@ -257,11 +310,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
               stroke: (d: NodeData<GraphNodeData>) => d.data?.borderColor || '#2563eb',
               lineWidth: 2,
               radius: 8,
-              labelText: (d: NodeData<GraphNodeData>) => {
-                const wrongCount = d.data?.wrongCount || 0;
-                const baseLabel = d.data?.label || '';
-                return wrongCount > 0 ? `${baseLabel} (${wrongCount})` : baseLabel;
-              },
+              labelText: (d: NodeData<GraphNodeData>) => d.data?.label || '',
               labelFill: (d: NodeData<GraphNodeData>) => d.data?.textColor || '#ffffff',
               labelFontSize: 11,
               labelFontWeight: 600,
@@ -615,7 +664,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
         <Sheet open={!!selectedNode} onOpenChange={(open) => !open && setSelectedNode(null)}>
           <SheetContent className="w-[400px] sm:w-[540px]">
             <SheetHeader>
-              <SheetTitle className="flex items-center gap-2">
+              <SheetTitle className="flex items-center gap-2 relative">
                 <span>{selectedNode.name}</span>
                 <Badge
                   variant="outline"
@@ -626,11 +675,20 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
                 >
                   PS: {selectedNode.ps_score}
                 </Badge>
-                {getNodeWrongCount(selectedNode.id) > 0 && (
-                  <Badge variant="destructive" className="flex items-center gap-1">
-                    <X className="h-3 w-3" />
-                    {getNodeWrongCount(selectedNode.id)}
-                  </Badge>
+                {selectedNode.node_type === 'angle' && getNodeWrongCount(selectedNode.id) > 0 && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Badge 
+                        variant="destructive" 
+                        className="absolute -top-1 -right-1 h-5 min-w-[20px] text-[10px] px-1 cursor-pointer hover:scale-110 transition-transform"
+                      >
+                        {getNodeWrongCount(selectedNode.id)}
+                      </Badge>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[320px] max-h-[300px] overflow-auto p-3" side="right" align="start">
+                      <WrongQuestionList angleId={selectedNode.id} angleName={selectedNode.name} />
+                    </PopoverContent>
+                  </Popover>
                 )}
               </SheetTitle>
             </SheetHeader>
