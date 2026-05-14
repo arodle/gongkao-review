@@ -122,8 +122,8 @@ export function QuestionCard({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // For batch mode, determine if we should show results
-  const shouldShowResult = answerMode === 'instant' ? showResult : hasAnswered;
+  // For batch mode, never show results during practice - only after submission
+  const shouldShowResult = answerMode === 'instant' ? showResult : false;
 
   return (
     <motion.div
@@ -590,13 +590,17 @@ export function PracticeSession({ questions, mode, answerMode = 'instant', onCom
     onExit();
   }, [onExit]);
 
+  // Prepare results for PracticeComplete - use answers state or rebuild from questions if not yet updated
+  const resultsForComplete = answers.length > 0 ? answers : questions.map((q, idx) => ({
+    question: q,
+    selectedAnswer: userAnswers[idx],
+    isCorrect: userAnswers[idx] === q.correctAnswer,
+    answerTime: elapsedTime / questions.length * 1000,
+    timestamp: Date.now(),
+  }));
+
   if (isComplete) {
-    return <PracticeComplete results={answers.length > 0 ? answers : questions.map((q, idx) => ({
-      question: q,
-      selectedAnswer: userAnswers[idx],
-      isCorrect: userAnswers[idx] === q.correctAnswer,
-      answerTime: elapsedTime / questions.length * 1000,
-    }))} onExit={onExit} elapsedTime={elapsedTime} />;
+    return <PracticeComplete results={resultsForComplete} onExit={onExit} elapsedTime={elapsedTime} />;
   }
 
   return (
@@ -760,12 +764,13 @@ function PracticeComplete({ results, onExit, elapsedTime }: { results: any[]; on
                 <div className="flex items-center justify-between">
                   <h4 className="font-semibold">
                     第 {selectedQuestion + 1} 题
-                    <Badge 
-                      variant={results[selectedQuestion].isCorrect ? 'success' : 'destructive'}
-                      className="ml-2"
-                    >
+                    <span className={`ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
+                      results[selectedQuestion].isCorrect 
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                    }`}>
                       {results[selectedQuestion].isCorrect ? '正确' : '错误'}
-                    </Badge>
+                    </span>
                   </h4>
                   <Button
                     variant="ghost"
