@@ -484,7 +484,7 @@ function AppContent() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="h-full"
+              className="h-full flex flex-col"
             >
               <QuestionBankManager />
             </motion.div>
@@ -497,14 +497,14 @@ function AppContent() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="h-full"
+              className="h-full flex flex-col"
             >
-              <div className="h-full">
-                <div className="p-3 border-b bg-white/50 dark:bg-slate-900/50">
+              <div className="flex flex-col h-full">
+                <div className="p-3 border-b bg-white/50 dark:bg-slate-900/50 shrink-0">
                   <h3 className="font-semibold">双栏错题本</h3>
                   <p className="text-xs text-muted-foreground">左侧展示错题，右侧编辑笔记，绑定完整知识层级标签</p>
                 </div>
-                <div className="h-[calc(100%-72px)]">
+                <div className="flex-1 overflow-hidden">
                   <WrongAnswerNotebook />
                 </div>
               </div>
@@ -518,7 +518,7 @@ function AppContent() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="h-full overflow-auto"
+              className="h-full flex flex-col"
             >
               <ReportDashboard />
             </motion.div>
@@ -531,7 +531,7 @@ function AppContent() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="h-full overflow-auto"
+              className="h-full flex flex-col"
             >
               <CenterDashboard />
             </motion.div>
