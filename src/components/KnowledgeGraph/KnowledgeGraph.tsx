@@ -142,6 +142,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
   const [flyingDots, setFlyingDots] = useState<FlyingDot[]>([]);
   const [isReady, setIsReady] = useState(false);
   const [showWrongAnswerList, setShowWrongAnswerList] = useState<string | null>(null);
+  const [nodeBadges, setNodeBadges] = useState<Record<string, { x: number; y: number; wrongCount: number }>>({});
 
   const { nodes, isInitialized, updateNodePSScore, getNodeStats, getWrongAnswersByNodeId, psHistory, practiceRecords } = useAppStore();
 
@@ -306,9 +307,6 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
           if (node) {
             setSelectedNode(node);
             onNodeSelect?.(node);
-            if (autoShowWrongAnswer) {
-              setShowWrongAnswerList(node.id);
-            }
           }
         });
 
@@ -356,6 +354,59 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
       }
     }
   }, [graphData, isReady, structureChanged]);
+
+  useEffect(() => {
+    if (!graphRef.current || !isReady) return;
+
+    const updateBadges = () => {
+      const graph = graphRef.current!;
+      const badges: Record<string, { x: number; y: number; wrongCount: number }> = {};
+
+      const containerRect = containerRef.current?.getBoundingClientRect();
+      if (!containerRect) return;
+
+      nodes.forEach(node => {
+        const wrongCount = getNodeWrongCount(node.id);
+        if (wrongCount === 0) return;
+
+        try {
+          const nodeData = graph.getElementData(node.id);
+          if (!nodeData) return;
+
+          const style = nodeData.style as { x?: number; y?: number; [key: string]: any } | undefined;
+          const nodeX = style?.x ?? 0;
+          const nodeY = style?.y ?? 0;
+          const nodeSize = SIZE_MAP[style?.nodeType] ?? 32;
+          const zoom = graph.getZoom();
+
+          const canvasPoint = graph.getCanvasByViewport({ x: nodeX, y: nodeY });
+          if (!canvasPoint) return;
+
+          badges[node.id] = {
+            x: canvasPoint.x - containerRect.left + nodeSize * zoom / 2,
+            y: canvasPoint.y - containerRect.top - nodeSize * zoom / 2,
+            wrongCount,
+          };
+        } catch (e) {
+          console.warn('Failed to update badge for node:', node.id, e);
+        }
+      });
+
+      setNodeBadges(badges);
+    };
+
+    const graph = graphRef.current;
+    
+    graph.on('afterlayout', updateBadges);
+    graph.on('viewportchange', updateBadges);
+    
+    requestAnimationFrame(updateBadges);
+
+    return () => {
+      graph.off('afterlayout', updateBadges);
+      graph.off('viewportchange', updateBadges);
+    };
+  }, [isReady, nodes, getNodeWrongCount]);
 
   const handleZoomIn = useCallback(() => {
     if (graphRef.current) {
@@ -429,6 +480,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
   const handleViewHistory = useCallback(() => {
     if (selectedNode) {
       setShowWrongAnswerList(selectedNode.id);
+      setSelectedNode(null);
     }
   }, [selectedNode]);
 
@@ -441,6 +493,32 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
     <TooltipProvider>
     <div className="relative w-full h-full bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-lg overflow-hidden">
       <div ref={containerRef} className="w-full h-full" />
+
+      <div className="absolute inset-0 pointer-events-none z-20">
+        {Object.entries(nodeBadges).map(([nodeId, badge]) => {
+          return (
+            <button
+              key={nodeId}
+              className="absolute pointer-events-auto
+                         bg-red-500 text-white text-[10px] font-bold rounded-full 
+                         w-5 h-5 flex items-center justify-center 
+                         shadow-lg hover:scale-110 transition-transform cursor-pointer"
+              style={{ 
+                left: badge.x, 
+                top: badge.y,
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowWrongAnswerList(nodeId);
+                setSelectedNode(null);
+              }}
+              aria-label={`查看${badge.wrongCount}道错题`}
+            >
+              {badge.wrongCount > 9 ? '9+' : badge.wrongCount}
+            </button>
+          );
+        })}
+      </div>
 
       <AnimatePresence>
         {flyingDots.map(dot => (
