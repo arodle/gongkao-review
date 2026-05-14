@@ -88,18 +88,23 @@ export function QuestionCard({
 }: QuestionCardProps) {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
-  const [startTime] = useState(Date.now());
+  const [startTime, setStartTime] = useState(Date.now());
   const [showExplanation, setShowExplanation] = useState(false);
+
+  useEffect(() => {
+    setSelectedOption(userAnswer || null);
+    setShowResult(!!userAnswer);
+    setStartTime(Date.now());
+    setShowExplanation(false);
+  }, [question.id, userAnswer]);
 
   const handleSelectOption = useCallback((label: string) => {
     if (answerMode === 'batch') {
-      // For batch mode, just record the answer without showing result
       setSelectedOption(label);
       onSelectAnswer?.(label);
       return;
     }
 
-    // For instant mode, show result immediately
     if (showResult) return;
 
     setSelectedOption(label);
