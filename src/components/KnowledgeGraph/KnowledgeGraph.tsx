@@ -116,6 +116,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
   const [flyingDots, setFlyingDots] = useState<FlyingDot[]>([]);
   const [isReady, setIsReady] = useState(false);
   const [showWrongAnswerList, setShowWrongAnswerList] = useState<string | null>(null);
+  const [showNodeBadges, setShowNodeBadges] = useState<Record<string, { x: number; y: number; wrongCount: number }>>({});
 
   const { nodes, isInitialized, updateNodePSScore, getNodeStats, getWrongAnswersByNodeId, psHistory, practiceRecords } = useAppStore();
 
@@ -177,7 +178,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
 
     const initGraph = async () => {
       try {
-        const { Graph } = await import('@antv/g6');
+        const { Graph, register } = await import('@antv/g6');
 
         if (!mounted || !containerRef.current) return;
 
@@ -186,45 +187,127 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
           graphRef.current = null;
         }
 
+        // 自定义节点：在右上角添加错题数量徽章
+        register('node', 'custom-node', {
+          draw(cfg: any, group: any) {
+            const nodeData = cfg.data || {};
+            const type = nodeData.nodeType;
+            let size = 32;
+            if (type === 'subject') size = 60;
+            else if (type === 'knowledge') size = 50;
+            else if (type === 'subknowledge') size = 40;
+            else if (type === 'example') size = 35;
+
+            // 绘制主节点
+            const rect = group.addShape('rect', {
+              attrs: {
+                x: -size / 2,
+                y: -size / 2,
+                width: size,
+                height: size,
+                fill: nodeData.color || '#3b82f6',
+                stroke: nodeData.borderColor || '#2563eb',
+                lineWidth: 2,
+                radius: 8,
+                shadowColor: 'rgba(0,0,0,0.2)',
+                shadowBlur: 8,
+                shadowOffsetY: 2,
+              },
+              name: 'main-rect',
+            });
+
+            // 绘制标签
+            if (nodeData.label) {
+              group.addShape('text', {
+                attrs: {
+                  text: nodeData.label,
+                  x: 0,
+                  y: 0,
+                  textAlign: 'center',
+                  textBaseline: 'middle',
+                  fill: nodeData.textColor || '#ffffff',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  wordWrap: true,
+                  wordWrapWidth: size - 10,
+                },
+                name: 'label',
+              });
+            }
+
+            // 如果有错题库，绘制右上角徽章
+            if (nodeData.wrongCount && nodeData.wrongCount > 0) {
+              const badgeSize = Math.min(24, size / 2 + 4);
+              const badgeText = nodeData.wrongCount > 99 ? '99+' : String(nodeData.wrongCount);
+              
+              // 徽章背景
+              const badgeRect = group.addShape('rect', {
+                attrs: {
+                  x: size / 2 - 8,
+                  y: -size / 2 - 8,
+                  width: badgeSize,
+                  height: 18,
+                  fill: '#ef4444',
+                  stroke: '#ffffff',
+                  lineWidth: 2,
+                  radius: 4,
+                },
+                name: 'badge-rect',
+                draggable: false,
+              });
+
+              // 徽章文字
+              group.addShape('text', {
+                attrs: {
+                  text: badgeText,
+                  x: size / 2 - 8 + badgeSize / 2,
+                  y: -size / 2 - 8 + 9,
+                  textAlign: 'center',
+                  textBaseline: 'middle',
+                  fill: '#ffffff',
+                  fontSize: 10,
+                  fontWeight: 700,
+                },
+                name: 'badge-text',
+                draggable: false,
+              });
+            }
+
+            return rect;
+          },
+          getAnchorPoints() {
+            return [
+              [0.5, 0], // 上
+              [1, 0.5], // 右
+              [0.5, 1], // 下
+              [0, 0.5], // 左
+            ];
+          },
+          setState(name, value, item) {
+            const group = item?.getContainer();
+            const mainRect = group?.findAll((ele: any) => ele.get('name') === 'main-rect')[0];
+            
+            if (name === 'hover' || name === 'selected') {
+              if (value) {
+                mainRect?.attr('lineWidth', name === 'selected' ? 4 : 3);
+                mainRect?.attr('shadowBlur', name === 'selected' ? 16 : 12);
+                if (name === 'selected') {
+                  mainRect?.attr('shadowColor', '#fbbf24');
+                }
+              } else {
+                mainRect?.attr('lineWidth', 2);
+                mainRect?.attr('shadowBlur', 8);
+                mainRect?.attr('shadowColor', 'rgba(0,0,0,0.2)');
+              }
+            }
+          },
+        });
+
         const graph = new Graph({
           container: containerRef.current,
           data: graphData,
           node: {
-            style: {
-              size: (d: any) => {
-                const type = d.data?.nodeType;
-                if (type === 'subject') return 60;
-                if (type === 'knowledge') return 50;
-                if (type === 'subknowledge') return 40;
-                if (type === 'example') return 35;
-                return 32;
-              },
-              fill: (d: any) => d.data?.color || '#3b82f6',
-              stroke: (d: any) => d.data?.borderColor || '#2563eb',
-              lineWidth: 2,
-              radius: 8,
-              labelText: (d: any) => d.data?.label || '',
-              labelFill: (d: any) => d.data?.textColor || '#ffffff',
-              labelFontSize: 11,
-              labelFontWeight: 600,
-              labelMaxWidth: 100,
-              labelWordWrap: true,
-              opacity: (d: any) => d.data?.opacity ?? 1,
-              shadowColor: 'rgba(0,0,0,0.2)',
-              shadowBlur: 8,
-              shadowOffsetY: 2,
-            },
-            state: {
-              hover: {
-                lineWidth: 3,
-                shadowBlur: 12,
-              },
-              selected: {
-                lineWidth: 4,
-                shadowBlur: 16,
-                shadowColor: '#fbbf24',
-              },
-            },
+            type: 'custom-node',
           },
           edge: {
             style: {
@@ -235,20 +318,35 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: KnowledgeGr
           layout: {
             type: 'dagre',
             rankdir: 'LR',
-            nodesep: 30,
-            ranksep: 80,
+            nodesep: 40,
+            ranksep: 90,
           },
           behaviors: ['drag-canvas', 'zoom-canvas'],
           autoFit: 'view',
-          padding: 50,
+          padding: 60,
         });
 
+        // 点击节点事件
         graph.on('node:click', (event: any) => {
-          const nodeId = event.target.id;
+          const item = event.item;
+          if (!item) return;
+          
+          const nodeId = item.get('id');
           const node = nodes.find(n => n.id === nodeId);
-          if (node) {
-            setSelectedNode(node);
-            onNodeSelect?.(node);
+          
+          // 判断点击位置是否在徽章区域
+          const targetName = event.target.get('name');
+          if (targetName === 'badge-rect' || targetName === 'badge-text') {
+            // 点击了徽章，显示错题列表
+            if (node) {
+              setShowWrongAnswerList(node.id);
+            }
+          } else {
+            // 点击了节点主体
+            if (node) {
+              setSelectedNode(node);
+              onNodeSelect?.(node);
+            }
           }
         });
 
