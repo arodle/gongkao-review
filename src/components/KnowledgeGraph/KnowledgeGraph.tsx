@@ -231,7 +231,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
       isInitializing = true;
 
       try {
-        const { Graph, register } = await import('@antv/g6');
+        const { Graph } = await import('@antv/g6');
 
         if (!mounted || !containerRef.current) return;
 
@@ -244,107 +244,45 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
           console.warn('Failed to destroy previous graph:', e);
         }
 
-        register('node', 'knowledge-node', {
-          draw(cfg: any, container: any) {
-            const nodeData = cfg.data || {};
-            const type = nodeData.nodeType;
-            const wrongCount = nodeData.wrongCount || 0;
-            const size = SIZE_MAP[type] ?? 32;
-            
-            const mainRect = container.addShape('rect', {
-              attrs: {
-                x: -size / 2,
-                y: -size / 2,
-                width: size,
-                height: size,
-                fill: nodeData.color || '#3b82f6',
-                stroke: nodeData.borderColor || '#2563eb',
-                lineWidth: 2,
-                radius: 8,
-                shadowColor: 'rgba(0,0,0,0.2)',
-                shadowBlur: 8,
-                shadowOffsetY: 2,
-              },
-              name: 'main-rect',
-            });
-
-            if (nodeData.label) {
-              container.addShape('text', {
-                attrs: {
-                  x: 0,
-                  y: 0,
-                  text: nodeData.label,
-                  textAlign: 'center',
-                  textBaseline: 'middle',
-                  fill: nodeData.textColor || '#ffffff',
-                  fontSize: 11,
-                  fontWeight: 600,
-                },
-                name: 'label-shape',
-              });
-            }
-
-            if (wrongCount > 0) {
-              const badgeSize = 18;
-              const badgeX = size / 2 - badgeSize / 2;
-              const badgeY = -size / 2 - badgeSize / 2 + 4;
-
-              container.addShape('rect', {
-                attrs: {
-                  x: badgeX,
-                  y: badgeY,
-                  width: badgeSize,
-                  height: badgeSize,
-                  fill: '#ef4444',
-                  radius: badgeSize / 2,
-                  stroke: '#ffffff',
-                  lineWidth: 2,
-                },
-                name: 'badge-bg',
-              });
-
-              const badgeText = wrongCount > 9 ? '9+' : String(wrongCount);
-              container.addShape('text', {
-                attrs: {
-                  x: badgeX + badgeSize / 2,
-                  y: badgeY + badgeSize / 2,
-                  text: badgeText,
-                  textAlign: 'center',
-                  textBaseline: 'middle',
-                  fill: '#ffffff',
-                  fontSize: 10,
-                  fontWeight: 700,
-                },
-                name: 'badge-text',
-              });
-            }
-
-            return mainRect;
-          },
-          setState(name: string, value: boolean, item: any) {
-            const group = item.getContainer();
-            const rect = group.findAll((e: any) => e.get('name') === 'main-rect')[0];
-            if (rect) {
-              if (name === 'hover' || name === 'selected') {
-                rect.attr('lineWidth', name === 'selected' ? 4 : 3);
-                rect.attr('shadowBlur', name === 'selected' ? 16 : 12);
-                if (name === 'selected') {
-                  rect.attr('shadowColor', '#fbbf24');
-                }
-              } else {
-                rect.attr('lineWidth', 2);
-                rect.attr('shadowBlur', 8);
-                rect.attr('shadowColor', 'rgba(0,0,0,0.2)');
-              }
-            }
-          },
-        });
-
         const graph = new Graph<GraphNodeData>({
           container: containerRef.current,
           data: graphData,
           node: {
-            type: 'knowledge-node',
+            style: {
+              size: (d: NodeData<GraphNodeData>) => {
+                const type = d.data?.nodeType;
+                return SIZE_MAP[type] ?? 32;
+              },
+              fill: (d: NodeData<GraphNodeData>) => d.data?.color || '#3b82f6',
+              stroke: (d: NodeData<GraphNodeData>) => d.data?.borderColor || '#2563eb',
+              lineWidth: 2,
+              radius: 8,
+              labelText: (d: NodeData<GraphNodeData>) => {
+                const wrongCount = d.data?.wrongCount || 0;
+                const baseLabel = d.data?.label || '';
+                return wrongCount > 0 ? `${baseLabel} (${wrongCount})` : baseLabel;
+              },
+              labelFill: (d: NodeData<GraphNodeData>) => d.data?.textColor || '#ffffff',
+              labelFontSize: 11,
+              labelFontWeight: 600,
+              labelMaxWidth: 100,
+              labelWordWrap: true,
+              opacity: (d: NodeData<GraphNodeData>) => d.data?.opacity ?? 1,
+              shadowColor: 'rgba(0,0,0,0.2)',
+              shadowBlur: 8,
+              shadowOffsetY: 2,
+            },
+            state: {
+              hover: {
+                lineWidth: 3,
+                shadowBlur: 12,
+              },
+              selected: {
+                lineWidth: 4,
+                shadowBlur: 16,
+                shadowColor: '#fbbf24',
+              },
+            },
           },
           edge: {
             style: {
