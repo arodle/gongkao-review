@@ -45,6 +45,9 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+const STORAGE_KEY = 'wrong_answer_notes';
+const EXPANDED_KEY = 'wrong_answer_expanded';
+
 interface WrongAnswerNote {
   id: string;
   questionId: string;
@@ -52,7 +55,7 @@ interface WrongAnswerNote {
   correctAnswer: string;
   userAnswer: string;
   nodePath: string;
-  linkedAngleId: string;
+  linkedAngleId: string | null;
   linkedAngleName: string;
   note: string;
   createdAt: string;
@@ -155,6 +158,22 @@ function WrongAnswerItem({ item, isSelected, onSelect, isExpanded, onToggle }: W
   );
 }
 
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
 export function WrongAnswerNotebook() {
   const { practiceRecords, nodes, questionBank, updateNodeAnnotation } = useAppStore();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -163,30 +182,64 @@ export function WrongAnswerNotebook() {
   const [editingNote, setEditingNote] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [showNotePanel, setShowNotePanel] = useState(true);
-  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
-  const [localNotes, setLocalNotes] = useState<{ [key: string]: string }>({});
+  const [expandedItems, setExpandedItems] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(EXPANDED_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [localNotes, setLocalNotes] = useState<{ [key: string]: string }>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
   const notePanelRef = useRef<HTMLDivElement>(null);
+
+  const debouncedSearch = useDebounce(searchQuery, 100);
+
+  const nodePathMap = useMemo(() => {
+    const map = new Map<string, string>();
+    
+    const getNodePath = (nodeId: string): string => {
+      if (map.has(nodeId)) {
+        return map.get(nodeId)!;
+      }
+      
+      const parts: string[] = [];
+      let current = nodes.find(n => n.id === nodeId);
+      while (current) {
+        parts.unshift(current.name);
+        current = current.parent_id
+          ? nodes.find(n => n.id === current!.parent_id)
+          : undefined;
+      }
+      
+      const path = parts.join(' / ');
+      map.set(nodeId, path);
+      return path;
+    };
+
+    nodes.forEach(node => {
+      getNodePath(node.id);
+    });
+
+    return map;
+  }, [nodes]);
 
   const wrongAnswers = useMemo(() => {
     const wrongRecords = practiceRecords.filter(r => !r.is_correct);
 
     return wrongRecords.map(record => {
       const question = questionBank.find(q => q.id === record.question_id);
-      const linkedNode = question?.linkedAngleId
-        ? nodes.find(n => n.id === question.linkedAngleId)
+      const linkedAngleId = question?.linkedAngleId || null;
+      const linkedNode = linkedAngleId
+        ? nodes.find(n => n.id === linkedAngleId)
         : null;
-
-      const getNodePath = (nodeId: string): string => {
-        const parts: string[] = [];
-        let current = nodes.find(n => n.id === nodeId);
-        while (current) {
-          parts.unshift(current.name);
-          current = current.parent_id
-            ? nodes.find(n => n.id === current!.parent_id)
-            : undefined;
-        }
-        return parts.join(' / ');
-      };
 
       return {
         id: record.id,
@@ -194,8 +247,8 @@ export function WrongAnswerNotebook() {
         questionContent: question?.content || '题目内容已不存在',
         correctAnswer: question?.correctAnswer || '未知',
         userAnswer: record.selected_answer || '未记录',
-        nodePath: linkedNode ? getNodePath(linkedNode.id) : '未分类',
-        linkedAngleId: question?.linkedAngleId || '',
+        nodePath: linkedNode ? (nodePathMap.get(linkedNode.id) || '未分类') : '未分类',
+        linkedAngleId,
         linkedAngleName: linkedNode?.name || '未分类',
         note: localNotes[record.id] || '',
         createdAt: record.updated_at,
@@ -203,13 +256,13 @@ export function WrongAnswerNotebook() {
         images: question?.images || [],
       } as WrongAnswerNote;
     }).reverse();
-  }, [practiceRecords, questionBank, nodes, localNotes]);
+  }, [practiceRecords, questionBank, nodes, localNotes, nodePathMap]);
 
   const filteredWrongAnswers = useMemo(() => {
     let result = wrongAnswers;
 
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+    if (debouncedSearch) {
+      const query = debouncedSearch.toLowerCase();
       result = result.filter(
         item =>
           item.questionContent.toLowerCase().includes(query) ||
@@ -223,7 +276,7 @@ export function WrongAnswerNotebook() {
     }
 
     return result;
-  }, [wrongAnswers, searchQuery, filterNode]);
+  }, [wrongAnswers, debouncedSearch, filterNode]);
 
   const selectedItem = useMemo(() => {
     return filteredWrongAnswers.find(item => item.id === selectedId);
@@ -235,12 +288,16 @@ export function WrongAnswerNotebook() {
 
   const toggleExpand = useCallback((id: string) => {
     setExpandedItems(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
+      const next = prev.includes(id)
+        ? prev.filter(item => item !== id)
+        : [...prev, id];
+      
+      try {
+        localStorage.setItem(EXPANDED_KEY, JSON.stringify(next));
+      } catch (e) {
+        console.error('Failed to save expanded items:', e);
       }
+      
       return next;
     });
   }, []);
@@ -256,7 +313,12 @@ export function WrongAnswerNotebook() {
       '错题时间': item.createdAt,
     }));
 
-    const headers = Object.keys(exportData[0] || {});
+    if (exportData.length === 0) {
+      alert('没有可导出的数据');
+      return;
+    }
+
+    const headers = Object.keys(exportData[0]);
     const csvContent = [
       headers.join(','),
       ...exportData.map(row =>
@@ -275,9 +337,18 @@ export function WrongAnswerNotebook() {
 
   const handleSaveNote = useCallback(() => {
     if (!selectedId) return;
-    setLocalNotes(prev => ({ ...prev, [selectedId]: editingNote }));
+    
+    const newNotes = { ...localNotes, [selectedId]: editingNote };
+    setLocalNotes(newNotes);
+    
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newNotes));
+    } catch (e) {
+      console.error('Failed to save notes:', e);
+    }
+    
     setIsEditing(false);
-  }, [selectedId, editingNote]);
+  }, [selectedId, editingNote, localNotes]);
 
   const handleSelectItem = useCallback((id: string) => {
     setSelectedId(id);
@@ -305,14 +376,17 @@ export function WrongAnswerNotebook() {
   }, [wrongAnswers]);
 
   useEffect(() => {
-    if (selectedId) {
-      setExpandedItems(prev => {
-        const next = new Set(prev);
-        next.add(selectedId);
-        return next;
-      });
+    if (selectedId && !expandedItems.includes(selectedId)) {
+      const newExpanded = [...expandedItems, selectedId];
+      setExpandedItems(newExpanded);
+      
+      try {
+        localStorage.setItem(EXPANDED_KEY, JSON.stringify(newExpanded));
+      } catch (e) {
+        console.error('Failed to save expanded items:', e);
+      }
     }
-  }, [selectedId]);
+  }, [selectedId, expandedItems]);
 
   return (
     <div className="h-full flex">
@@ -379,7 +453,7 @@ export function WrongAnswerNotebook() {
                   item={item}
                   isSelected={selectedId === item.id}
                   onSelect={() => handleSelectItem(item.id)}
-                  isExpanded={expandedItems.has(item.id)}
+                  isExpanded={expandedItems.includes(item.id)}
                   onToggle={() => toggleExpand(item.id)}
                 />
               ))}
@@ -389,7 +463,7 @@ export function WrongAnswerNotebook() {
               <CheckCircle2 className="h-12 w-12 text-green-500/30 mb-3" />
               <h3 className="text-base font-medium mb-1">太棒了！</h3>
               <p className="text-xs text-muted-foreground">
-                {searchQuery || filterNode !== 'all'
+                {debouncedSearch || filterNode !== 'all'
                   ? '没有找到符合条件的错题'
                   : '暂无错题记录，继续保持！'}
               </p>
