@@ -795,7 +795,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
       )}
 
       <AnimatePresence>
-        {showWrongAnswerList && (
+        {showWrongAnswerList && typeof showWrongAnswerList === 'string' && (
           <WrongAnswerList
             nodeId={showWrongAnswerList}
             onClose={() => setShowWrongAnswerList(null)}
@@ -830,7 +830,7 @@ function FlyingDotAnimation({ startX, startY, endX, endY, onComplete }: FlyingDo
         duration: 0.8,
         ease: 'easeOut',
       }}
-      onAnimationComplete={onComplete}
+      onAnimationComplete={() => onComplete()}
       style={{
         transform: 'translate(-50%, -50%)',
         boxShadow: '0 0 20px rgba(251, 191, 36, 0.6)',
@@ -839,24 +839,3 @@ function FlyingDotAnimation({ startX, startY, endX, endY, onComplete }: FlyingDo
   );
 }
 
-export function useFlyingDotTrigger() {
-  const [dots, setDots] = useState<FlyingDot[]>([]);
-
-  const trigger = useCallback((targetNodeId: string, containerRect: DOMRect) => {
-    const dot: FlyingDot = {
-      id: `dot-${Date.now()}-${Math.random()}`,
-      startX: containerRect.width / 2,
-      startY: containerRect.height / 2,
-      endX: containerRect.width / 2,
-      endY: containerRect.height / 2,
-      targetNodeId,
-    };
-    setDots(prev => [...prev, dot]);
-
-    setTimeout(() => {
-      setDots(prev => prev.filter(d => d.id !== dot.id));
-    }, 1000);
-  }, []);
-
-  return { dots, trigger };
-}
