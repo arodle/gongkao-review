@@ -534,18 +534,6 @@ export function PracticeSession({ questions, mode, answerMode = 'instant', onCom
     setUserAnswers(prev => ({ ...prev, [currentIndex]: selectedAnswer }));
   }, [currentIndex]);
 
-  const handlePrev = useCallback(() => {
-    if (currentIndex > 0) {
-      setCurrentIndex(prev => prev - 1);
-    }
-  }, [currentIndex]);
-
-  const handleNext = useCallback(() => {
-    if (currentIndex < questions.length - 1) {
-      setCurrentIndex(prev => prev + 1);
-    }
-  }, [currentIndex, questions.length]);
-
   const handleSubmit = useCallback(async () => {
     setIsRunning(false);
 
