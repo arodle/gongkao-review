@@ -127,8 +127,10 @@ export function QuestionCard({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // For batch mode, never show results during practice - only after submission
-  const shouldShowResult = answerMode === 'instant' ? showResult : false;
+  const shouldShowResult = 
+    answerMode === 'instant' 
+      ? showResult 
+      : hasAnswered;
 
   return (
     <motion.div
@@ -298,17 +300,17 @@ export function QuestionCard({
             <Button
               variant="default"
               onClick={onNext}
-              disabled={answerMode === 'instant' && !hasAnswered}
+              disabled={!userAnswer}
             >
               下一题
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           ) : (
-            // 最后一题显示提交按钮
             <Button
               variant="default"
               onClick={onSubmit}
               className="bg-green-600 hover:bg-green-700"
+              disabled={answerMode === 'batch' ? !hasAnswered : false}
             >
               <Send className="h-4 w-4 mr-1" />
               提交整卷
@@ -452,10 +454,19 @@ export function PracticeSession({ questions, mode, answerMode = 'instant', onCom
   const [isComplete, setIsComplete] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [userAnswers, setUserAnswers] = useState<{ [key: number]: string }>({});
+  const [isRunning, setIsRunning] = useState(true);
   const { updateNodePSScore, addAnswer } = useAppStore();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    if (!isRunning) {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
+
     timerRef.current = setInterval(() => {
       setElapsedTime(prev => prev + 1);
     }, 1000);
@@ -465,7 +476,7 @@ export function PracticeSession({ questions, mode, answerMode = 'instant', onCom
         clearInterval(timerRef.current);
       }
     };
-  }, []);
+  }, [isRunning]);
 
   if (!questions || questions.length === 0) {
     return (
@@ -536,12 +547,16 @@ export function PracticeSession({ questions, mode, answerMode = 'instant', onCom
   }, [currentIndex, questions.length]);
 
   const handleSubmit = useCallback(async () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
+    setIsRunning(false);
 
-    // For batch mode, process all answers
     if (answerMode === 'batch') {
+      const unanswered = questions.some((_, i) => !userAnswers[i]);
+      if (unanswered) {
+        setIsRunning(true);
+        alert('请完成所有题目再提交！');
+        return;
+      }
+
       const allAnswers = questions.map((q, idx) => {
         const selectedAnswer = userAnswers[idx];
         const isCorrect = selectedAnswer === q.correctAnswer;
@@ -554,7 +569,6 @@ export function PracticeSession({ questions, mode, answerMode = 'instant', onCom
         };
       });
 
-      // Update PS scores for all answers
       for (const answer of allAnswers) {
         if (answer.question.linkedAngleId) {
           await updateNodePSScore(answer.question.linkedAngleId, answer.isCorrect);
@@ -578,7 +592,6 @@ export function PracticeSession({ questions, mode, answerMode = 'instant', onCom
         details: allAnswers,
       });
     } else {
-      // For instant mode, just finish
       setIsComplete(true);
       onComplete({
         correct: answers.filter(a => a.isCorrect).length,
@@ -586,26 +599,40 @@ export function PracticeSession({ questions, mode, answerMode = 'instant', onCom
         details: answers,
       });
     }
-  }, [timerRef, answerMode, questions, userAnswers, elapsedTime, updateNodePSScore, addAnswer, mode, answers, onComplete]);
+  }, [answerMode, questions, userAnswers, elapsedTime, updateNodePSScore, addAnswer, mode, answers, onComplete]);
 
   const handleExitConfirm = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
+    setIsRunning(false);
     onExit();
   }, [onExit]);
 
-  // Prepare results for PracticeComplete - use answers state or rebuild from questions if not yet updated
-  const resultsForComplete = answers.length > 0 ? answers : questions.map((q, idx) => ({
-    question: q,
-    selectedAnswer: userAnswers[idx],
-    isCorrect: userAnswers[idx] === q.correctAnswer,
-    answerTime: elapsedTime / questions.length * 1000,
-    timestamp: Date.now(),
-  }));
+  const handleQuestionJump = useCallback((idx: number) => {
+    if (currentUserAnswer) {
+      setUserAnswers(prev => ({ ...prev, [currentIndex]: currentUserAnswer }));
+    }
+    setCurrentIndex(idx);
+  }, [currentIndex, currentUserAnswer]);
+
+  const handleNext = useCallback(() => {
+    if (currentUserAnswer) {
+      setUserAnswers(prev => ({ ...prev, [currentIndex]: currentUserAnswer }));
+    }
+    if (currentIndex < questions.length - 1) {
+      setCurrentIndex(prev => prev + 1);
+    }
+  }, [currentIndex, questions.length, currentUserAnswer]);
+
+  const handlePrev = useCallback(() => {
+    if (currentUserAnswer) {
+      setUserAnswers(prev => ({ ...prev, [currentIndex]: currentUserAnswer }));
+    }
+    if (currentIndex > 0) {
+      setCurrentIndex(prev => prev - 1);
+    }
+  }, [currentIndex, currentUserAnswer]);
 
   if (isComplete) {
-    return <PracticeComplete results={resultsForComplete} onExit={onExit} elapsedTime={elapsedTime} />;
+    return <PracticeComplete results={answers} onExit={onExit} elapsedTime={elapsedTime} />;
   }
 
   return (
@@ -619,7 +646,7 @@ export function PracticeSession({ questions, mode, answerMode = 'instant', onCom
                 variant={idx === currentIndex ? 'default' : userAnswers[idx] ? 'secondary' : 'outline'}
                 size="sm"
                 className="min-w-[2.5rem] flex-shrink-0"
-                onClick={() => setCurrentIndex(idx)}
+                onClick={() => handleQuestionJump(idx)}
               >
                 {idx + 1}
               </Button>
@@ -726,6 +753,8 @@ function PracticeComplete({ results, onExit, elapsedTime }: { results: any[]; on
           <div className="grid grid-cols-10 gap-2">
             {results.map((result, idx) => {
               const isCorrect = result.isCorrect;
+              if (filter === 'wrong' && isCorrect) return null;
+
               return (
                 <button
                   key={idx}
