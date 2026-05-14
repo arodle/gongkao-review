@@ -350,106 +350,108 @@ function AppContent() {
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
-              className="h-full overflow-auto"
+              className="h-full flex flex-col"
             >
-              <div className="max-w-4xl mx-auto py-8 px-4">
-                <div className="text-center mb-8">
-                  <h2 className="text-2xl font-bold mb-2">选择练习模式</h2>
-                  <p className="text-muted-foreground">
-                    根据你的需求，选择合适的练习方式
-                  </p>
-                </div>
-
-                <div className="mb-8">
-                  <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-[#DC2626]" />
-                      <span>薄弱</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-[#EA580C]" />
-                      <span>需加强</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-[#CA8A04]" />
-                      <span>学习中</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-[#0891B2]" />
-                      <span>熟练</span>
-                    </div>
+              <ScrollArea className="flex-1">
+                <div className="max-w-4xl mx-auto py-8 px-4">
+                  <div className="text-center mb-8">
+                    <h2 className="text-2xl font-bold mb-2">选择练习模式</h2>
+                    <p className="text-muted-foreground">
+                      根据你的需求，选择合适的练习方式
+                    </p>
                   </div>
-                </div>
 
-                <div className="mb-8">
-                  <div className="flex flex-wrap items-center justify-center gap-6">
-                    <div className="flex flex-col items-center gap-2">
-                      <label className="text-sm font-medium">练习题数</label>
-                      <div className="flex gap-2">
-                        <Button
-                          variant={practiceCount === 0 ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setPracticeCount(0)}
-                        >
-                          全部
-                        </Button>
-                        <Button
-                          variant={practiceCount === 5 ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setPracticeCount(5)}
-                        >
-                          5
-                        </Button>
-                        <Button
-                          variant={practiceCount === 10 ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setPracticeCount(10)}
-                        >
-                          10
-                        </Button>
-                        <Button
-                          variant={practiceCount === 15 ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setPracticeCount(15)}
-                        >
-                          15
-                        </Button>
+                  <div className="mb-8">
+                    <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-[#DC2626]" />
+                        <span>薄弱</span>
                       </div>
-                    </div>
-                    
-                    <div className="flex flex-col items-center gap-2">
-                      <label className="text-sm font-medium">答题模式</label>
-                      <div className="flex gap-2">
-                        <Button
-                          variant={answerMode === 'instant' ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setAnswerMode('instant')}
-                        >
-                          逐题作答
-                        </Button>
-                        <Button
-                          variant={answerMode === 'batch' ? 'default' : 'outline'}
-                          size="sm"
-                          onClick={() => setAnswerMode('batch')}
-                        >
-                          整卷提交
-                        </Button>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-[#EA580C]" />
+                        <span>需加强</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-[#CA8A04]" />
+                        <span>学习中</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-[#0891B2]" />
+                        <span>熟练</span>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                <PracticeSelector onSelectMode={handleStartPractice} />
+                  <div className="mb-8">
+                    <div className="flex flex-wrap items-center justify-center gap-6">
+                      <div className="flex flex-col items-center gap-2">
+                        <label className="text-sm font-medium">练习题数</label>
+                        <div className="flex gap-2">
+                          <Button
+                            variant={practiceCount === 0 ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setPracticeCount(0)}
+                          >
+                            全部
+                          </Button>
+                          <Button
+                            variant={practiceCount === 5 ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setPracticeCount(5)}
+                          >
+                            5
+                          </Button>
+                          <Button
+                            variant={practiceCount === 10 ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setPracticeCount(10)}
+                          >
+                            10
+                          </Button>
+                          <Button
+                            variant={practiceCount === 15 ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setPracticeCount(15)}
+                          >
+                            15
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-col items-center gap-2">
+                        <label className="text-sm font-medium">答题模式</label>
+                        <div className="flex gap-2">
+                          <Button
+                            variant={answerMode === 'instant' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setAnswerMode('instant')}
+                          >
+                            逐题作答
+                          </Button>
+                          <Button
+                            variant={answerMode === 'batch' ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => setAnswerMode('batch')}
+                          >
+                            整卷提交
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
-                <div className="mt-8 p-4 rounded-xl bg-muted/50 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    当前题库共 <span className="font-semibold text-foreground">{questionBank.length}</span> 道题目
-                    {weakCount > 0 && (
-                      <>，其中 <span className="font-semibold text-red-500">{weakCount}</span> 个薄弱知识点</>
-                    )}
-                  </p>
+                  <PracticeSelector onSelectMode={handleStartPractice} />
+
+                  <div className="mt-8 p-4 rounded-xl bg-muted/50 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      当前题库共 <span className="font-semibold text-foreground">{questionBank.length}</span> 道题目
+                      {weakCount > 0 && (
+                        <>，其中 <span className="font-semibold text-red-500">{weakCount}</span> 个薄弱知识点</>
+                      )}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              </ScrollArea>
             </motion.div>
           )}
 
@@ -459,17 +461,19 @@ function AppContent() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="h-full overflow-auto"
+              className="h-full flex flex-col"
             >
-              <div className="max-w-2xl mx-auto py-8 px-4">
-                <PracticeSession
-                  questions={getPracticeQuestions()}
-                  mode={practiceMode}
-                  answerMode={answerMode}
-                  onComplete={handlePracticeComplete}
-                  onExit={handleExitPractice}
-                />
-              </div>
+              <ScrollArea className="flex-1">
+                <div className="max-w-2xl mx-auto py-8 px-4">
+                  <PracticeSession
+                    questions={getPracticeQuestions()}
+                    mode={practiceMode}
+                    answerMode={answerMode}
+                    onComplete={handlePracticeComplete}
+                    onExit={handleExitPractice}
+                  />
+                </div>
+              </ScrollArea>
             </motion.div>
           )}
 

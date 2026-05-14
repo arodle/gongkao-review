@@ -523,50 +523,54 @@ export function CenterDashboard() {
   const strongCount = nodes.filter(n => n.ps_score >= 150).length;
 
   return (
-    <div className="space-y-6 p-6">
-      <div>
+    <div className="flex flex-col h-full">
+      <div className="p-6 pb-2">
         <h2 className="text-2xl font-bold tracking-tight">个人中心</h2>
         <p className="text-muted-foreground">
           管理你的学习数据和安全设置
         </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-red-200 dark:border-red-800">
-          <CardContent className="p-4 text-center">
-            <div className="text-3xl font-bold text-red-600 dark:text-red-400">{weakCount}</div>
-            <div className="text-sm text-muted-foreground">薄弱知识点</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border-yellow-200 dark:border-yellow-800">
-          <CardContent className="p-4 text-center">
-            <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{mediumCount}</div>
-            <div className="text-sm text-muted-foreground">学习中</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-cyan-50 to-teal-50 dark:from-cyan-900/20 dark:to-teal-900/20 border-cyan-200 dark:border-cyan-800">
-          <CardContent className="p-4 text-center">
-            <div className="text-3xl font-bold text-cyan-600 dark:text-cyan-400">{strongCount}</div>
-            <div className="text-sm text-muted-foreground">熟练掌握</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-slate-50 to-gray-50 dark:from-slate-900/20 dark:to-gray-900/20">
-          <CardContent className="p-4 text-center">
-            <div className="text-3xl font-bold">{practiceRecords.length}</div>
-            <div className="text-sm text-muted-foreground">总练习次数</div>
-          </CardContent>
-        </Card>
-      </div>
+      <ScrollArea className="flex-1">
+        <div className="p-6 pt-2 space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card className="bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-red-200 dark:border-red-800">
+              <CardContent className="p-4 text-center">
+                <div className="text-3xl font-bold text-red-600 dark:text-red-400">{weakCount}</div>
+                <div className="text-sm text-muted-foreground">薄弱知识点</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border-yellow-200 dark:border-yellow-800">
+              <CardContent className="p-4 text-center">
+                <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{mediumCount}</div>
+                <div className="text-sm text-muted-foreground">学习中</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-cyan-50 to-teal-50 dark:from-cyan-900/20 dark:to-teal-900/20 border-cyan-200 dark:border-cyan-800">
+              <CardContent className="p-4 text-center">
+                <div className="text-3xl font-bold text-cyan-600 dark:text-cyan-400">{strongCount}</div>
+                <div className="text-sm text-muted-foreground">熟练掌握</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-slate-50 to-gray-50 dark:from-slate-900/20 dark:to-gray-900/20">
+              <CardContent className="p-4 text-center">
+                <div className="text-3xl font-bold">{practiceRecords.length}</div>
+                <div className="text-sm text-muted-foreground">总练习次数</div>
+              </CardContent>
+            </Card>
+          </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <ExportPanel />
-        <RestorePanel />
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <ExportPanel />
+            <RestorePanel />
+          </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <SnapshotPanel />
-        <BackupConfigPanel />
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <SnapshotPanel />
+            <BackupConfigPanel />
+          </div>
+        </div>
+      </ScrollArea>
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { getPSColor } from '@/lib/utils/colors';
 
 export function RadarChart() {
@@ -413,33 +414,37 @@ export function HoneycombMap() {
 
 export function ReportDashboard() {
   return (
-    <div className="space-y-6 p-6">
-      <div>
+    <div className="flex flex-col h-full">
+      <div className="p-6 pb-2">
         <h2 className="text-2xl font-bold tracking-tight">数据报告</h2>
         <p className="text-muted-foreground">
           全面了解你的学习进度和能力分布
         </p>
       </div>
 
-      <Tabs defaultValue="radar" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="radar">能力雷达</TabsTrigger>
-          <TabsTrigger value="trend">PS 趋势</TabsTrigger>
-          <TabsTrigger value="map">全景图</TabsTrigger>
-        </TabsList>
+      <ScrollArea className="flex-1">
+        <div className="p-6 pt-2 space-y-6">
+          <Tabs defaultValue="radar" className="space-y-6">
+            <TabsList>
+              <TabsTrigger value="radar">能力雷达</TabsTrigger>
+              <TabsTrigger value="trend">PS 趋势</TabsTrigger>
+              <TabsTrigger value="map">全景图</TabsTrigger>
+            </TabsList>
 
-        <TabsContent value="radar" className="space-y-6">
-          <RadarChart />
-        </TabsContent>
+            <TabsContent value="radar" className="space-y-6">
+              <RadarChart />
+            </TabsContent>
 
-        <TabsContent value="trend" className="space-y-6">
-          <PSTrendChart />
-        </TabsContent>
+            <TabsContent value="trend" className="space-y-6">
+              <PSTrendChart />
+            </TabsContent>
 
-        <TabsContent value="map" className="space-y-6">
-          <HoneycombMap />
-        </TabsContent>
-      </Tabs>
+            <TabsContent value="map" className="space-y-6">
+              <HoneycombMap />
+            </TabsContent>
+          </Tabs>
+        </div>
+      </ScrollArea>
     </div>
   );
 }
