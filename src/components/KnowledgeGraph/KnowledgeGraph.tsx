@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { Graph, type GraphData, type NodeData, type EdgeData } from '@antv/g6';
+import { Graph, type GraphData, type NodeData, type EdgeData, type STDTime } from '@antv/g6';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/lib/stores/appStore';
 import { getPSColor, getPSColorWithFocus } from '@/lib/utils/colors';
@@ -142,7 +142,6 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
   const [flyingDots, setFlyingDots] = useState<FlyingDot[]>([]);
   const [isReady, setIsReady] = useState(false);
   const [showWrongAnswerList, setShowWrongAnswerList] = useState<string | null>(null);
-  const [nodeBadges, setNodeBadges] = useState<Record<string, { x: number; y: number; wrongCount: number }>>({});
 
   const { nodes, isInitialized, updateNodePSScore, getNodeStats, getWrongAnswersByNodeId, psHistory, practiceRecords } = useAppStore();
 
@@ -232,7 +231,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
       isInitializing = true;
 
       try {
-        const { Graph } = await import('@antv/g6');
+        const { Graph, register } = await import('@antv/g6');
 
         if (!mounted || !containerRef.current) return;
 
@@ -245,41 +244,107 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
           console.warn('Failed to destroy previous graph:', e);
         }
 
+        register('node', 'knowledge-node', {
+          draw(cfg: any, container: any) {
+            const nodeData = cfg.data || {};
+            const type = nodeData.nodeType;
+            const wrongCount = nodeData.wrongCount || 0;
+            const size = SIZE_MAP[type] ?? 32;
+            
+            const mainRect = container.addShape('rect', {
+              attrs: {
+                x: -size / 2,
+                y: -size / 2,
+                width: size,
+                height: size,
+                fill: nodeData.color || '#3b82f6',
+                stroke: nodeData.borderColor || '#2563eb',
+                lineWidth: 2,
+                radius: 8,
+                shadowColor: 'rgba(0,0,0,0.2)',
+                shadowBlur: 8,
+                shadowOffsetY: 2,
+              },
+              name: 'main-rect',
+            });
+
+            if (nodeData.label) {
+              container.addShape('text', {
+                attrs: {
+                  x: 0,
+                  y: 0,
+                  text: nodeData.label,
+                  textAlign: 'center',
+                  textBaseline: 'middle',
+                  fill: nodeData.textColor || '#ffffff',
+                  fontSize: 11,
+                  fontWeight: 600,
+                },
+                name: 'label-shape',
+              });
+            }
+
+            if (wrongCount > 0) {
+              const badgeSize = 18;
+              const badgeX = size / 2 - badgeSize / 2;
+              const badgeY = -size / 2 - badgeSize / 2 + 4;
+
+              container.addShape('rect', {
+                attrs: {
+                  x: badgeX,
+                  y: badgeY,
+                  width: badgeSize,
+                  height: badgeSize,
+                  fill: '#ef4444',
+                  radius: badgeSize / 2,
+                  stroke: '#ffffff',
+                  lineWidth: 2,
+                },
+                name: 'badge-bg',
+              });
+
+              const badgeText = wrongCount > 9 ? '9+' : String(wrongCount);
+              container.addShape('text', {
+                attrs: {
+                  x: badgeX + badgeSize / 2,
+                  y: badgeY + badgeSize / 2,
+                  text: badgeText,
+                  textAlign: 'center',
+                  textBaseline: 'middle',
+                  fill: '#ffffff',
+                  fontSize: 10,
+                  fontWeight: 700,
+                },
+                name: 'badge-text',
+              });
+            }
+
+            return mainRect;
+          },
+          setState(name: string, value: boolean, item: any) {
+            const group = item.getContainer();
+            const rect = group.findAll((e: any) => e.get('name') === 'main-rect')[0];
+            if (rect) {
+              if (name === 'hover' || name === 'selected') {
+                rect.attr('lineWidth', name === 'selected' ? 4 : 3);
+                rect.attr('shadowBlur', name === 'selected' ? 16 : 12);
+                if (name === 'selected') {
+                  rect.attr('shadowColor', '#fbbf24');
+                }
+              } else {
+                rect.attr('lineWidth', 2);
+                rect.attr('shadowBlur', 8);
+                rect.attr('shadowColor', 'rgba(0,0,0,0.2)');
+              }
+            }
+          },
+        });
+
         const graph = new Graph<GraphNodeData>({
           container: containerRef.current,
           data: graphData,
           node: {
-            style: {
-              size: (d: NodeData<GraphNodeData>) => {
-                const type = d.data?.nodeType;
-                return SIZE_MAP[type] ?? 32;
-              },
-              fill: (d: NodeData<GraphNodeData>) => d.data?.color || '#3b82f6',
-              stroke: (d: NodeData<GraphNodeData>) => d.data?.borderColor || '#2563eb',
-              lineWidth: 2,
-              radius: 8,
-              labelText: (d: NodeData<GraphNodeData>) => d.data?.label || '',
-              labelFill: (d: NodeData<GraphNodeData>) => d.data?.textColor || '#ffffff',
-              labelFontSize: 11,
-              labelFontWeight: 600,
-              labelMaxWidth: 100,
-              labelWordWrap: true,
-              opacity: (d: NodeData<GraphNodeData>) => d.data?.opacity ?? 1,
-              shadowColor: 'rgba(0,0,0,0.2)',
-              shadowBlur: 8,
-              shadowOffsetY: 2,
-            },
-            state: {
-              hover: {
-                lineWidth: 3,
-                shadowBlur: 12,
-              },
-              selected: {
-                lineWidth: 4,
-                shadowBlur: 16,
-                shadowColor: '#fbbf24',
-              },
-            },
+            type: 'knowledge-node',
           },
           edge: {
             style: {
@@ -354,59 +419,6 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
       }
     }
   }, [graphData, isReady, structureChanged]);
-
-  useEffect(() => {
-    if (!graphRef.current || !isReady) return;
-
-    const updateBadges = () => {
-      const graph = graphRef.current!;
-      const badges: Record<string, { x: number; y: number; wrongCount: number }> = {};
-
-      const containerRect = containerRef.current?.getBoundingClientRect();
-      if (!containerRect) return;
-
-      nodes.forEach(node => {
-        const wrongCount = getNodeWrongCount(node.id);
-        if (wrongCount === 0) return;
-
-        try {
-          const nodeData = graph.getElementData(node.id);
-          if (!nodeData) return;
-
-          const style = nodeData.style as { x?: number; y?: number; [key: string]: any } | undefined;
-          const nodeX = style?.x ?? 0;
-          const nodeY = style?.y ?? 0;
-          const nodeSize = SIZE_MAP[style?.nodeType] ?? 32;
-          const zoom = graph.getZoom();
-
-          const canvasPoint = graph.getCanvasByViewport({ x: nodeX, y: nodeY });
-          if (!canvasPoint) return;
-
-          badges[node.id] = {
-            x: canvasPoint.x - containerRect.left + nodeSize * zoom / 2,
-            y: canvasPoint.y - containerRect.top - nodeSize * zoom / 2,
-            wrongCount,
-          };
-        } catch (e) {
-          console.warn('Failed to update badge for node:', node.id, e);
-        }
-      });
-
-      setNodeBadges(badges);
-    };
-
-    const graph = graphRef.current;
-    
-    graph.on('afterlayout', updateBadges);
-    graph.on('viewportchange', updateBadges);
-    
-    requestAnimationFrame(updateBadges);
-
-    return () => {
-      graph.off('afterlayout', updateBadges);
-      graph.off('viewportchange', updateBadges);
-    };
-  }, [isReady, nodes, getNodeWrongCount]);
 
   const handleZoomIn = useCallback(() => {
     if (graphRef.current) {
@@ -493,32 +505,6 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
     <TooltipProvider>
     <div className="relative w-full h-full bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 rounded-lg overflow-hidden">
       <div ref={containerRef} className="w-full h-full" />
-
-      <div className="absolute inset-0 pointer-events-none z-20">
-        {Object.entries(nodeBadges).map(([nodeId, badge]) => {
-          return (
-            <button
-              key={nodeId}
-              className="absolute pointer-events-auto
-                         bg-red-500 text-white text-[10px] font-bold rounded-full 
-                         w-5 h-5 flex items-center justify-center 
-                         shadow-lg hover:scale-110 transition-transform cursor-pointer"
-              style={{ 
-                left: badge.x, 
-                top: badge.y,
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowWrongAnswerList(nodeId);
-                setSelectedNode(null);
-              }}
-              aria-label={`查看${badge.wrongCount}道错题`}
-            >
-              {badge.wrongCount > 9 ? '9+' : badge.wrongCount}
-            </button>
-          );
-        })}
-      </div>
 
       <AnimatePresence>
         {flyingDots.map(dot => (
