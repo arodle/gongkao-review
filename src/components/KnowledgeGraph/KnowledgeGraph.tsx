@@ -678,15 +678,15 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
                 {selectedNode.node_type === 'angle' && getNodeWrongCount(selectedNode.id) > 0 && (
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Badge 
-                        variant="destructive" 
+                      <Badge
+                        variant="destructive"
                         className="absolute -top-1 -right-1 h-5 min-w-[20px] text-[10px] px-1 cursor-pointer hover:scale-110 transition-transform"
                       >
                         {getNodeWrongCount(selectedNode.id)}
                       </Badge>
                     </PopoverTrigger>
                     <PopoverContent className="w-[320px] max-h-[300px] overflow-auto p-3" side="right" align="start">
-                      <WrongQuestionList angleId={selectedNode.id} angleName={selectedNode.name} />
+                      <WrongAnswerList nodeId={selectedNode.id} onClose={() => setShowWrongAnswerList(selectedNode.id)} />
                     </PopoverContent>
                   </Popover>
                 )}
