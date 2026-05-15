@@ -12,9 +12,9 @@ export const mindMaps = pgTable(
 	"mind_maps",
 	{
 		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-		user_id: varchar("user_id", { length: 36 }).notNull().default(sql`auth.uid()`),
+		user_id: varchar("user_id", { length: 36 }).notNull().default('default_user'),
 		name: varchar("name", { length: 200 }).notNull().default("我的思维导图"),
-		data: jsonb("data").notNull(), // 完整的KnowledgeNode树结构
+		data: jsonb("data").notNull(),
 		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 		updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 	},
@@ -28,7 +28,7 @@ export const questionBank = pgTable(
 	"question_bank",
 	{
 		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-		user_id: varchar("user_id", { length: 36 }).notNull().default(sql`auth.uid()`),
+		user_id: varchar("user_id", { length: 36 }).notNull().default('default_user'),
 		question_text: text("question_text").notNull(),
 		option_a: text("option_a"),
 		option_b: text("option_b"),
@@ -36,10 +36,10 @@ export const questionBank = pgTable(
 		option_d: text("option_d"),
 		correct_answer: varchar("correct_answer", { length: 10 }).notNull(),
 		explanation: text("explanation"),
-		knowledge_path: varchar("knowledge_path", { length: 500 }), // 如"行测/言语理解与表达/逻辑填空/实词辨析"
-		linked_angle_id: varchar("linked_angle_id", { length: 100 }), // 关联的思维导图角度节点ID
-		source: varchar("source", { length: 50 }).notNull().default("manual"), // manual/json/csv/mindmap/practice/exam
-		mind_map_id: varchar("mind_map_id", { length: 36 }), // 关联的思维导图ID
+		knowledge_path: varchar("knowledge_path", { length: 500 }),
+		linked_angle_id: varchar("linked_angle_id", { length: 100 }),
+		source: varchar("source", { length: 50 }).notNull().default("manual"),
+		mind_map_id: varchar("mind_map_id", { length: 36 }),
 		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 	},
 	(table) => [
@@ -55,12 +55,12 @@ export const answerRecords = pgTable(
 	"answer_records",
 	{
 		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-		user_id: varchar("user_id", { length: 36 }).notNull().default(sql`auth.uid()`),
+		user_id: varchar("user_id", { length: 36 }).notNull().default('default_user'),
 		question_id: varchar("question_id", { length: 36 }).notNull(),
 		selected_answer: varchar("selected_answer", { length: 10 }),
 		is_correct: boolean("is_correct").notNull(),
-		practice_mode: varchar("practice_mode", { length: 20 }).notNull().default("single"), // single/exam
-		practice_set_id: varchar("practice_set_id", { length: 36 }), // 关联的练习集/套卷ID
+		practice_mode: varchar("practice_mode", { length: 20 }).notNull().default("single"),
+		practice_set_id: varchar("practice_set_id", { length: 36 }),
 		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 	},
 	(table) => [
@@ -76,12 +76,12 @@ export const practiceSets = pgTable(
 	"practice_sets",
 	{
 		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
-		user_id: varchar("user_id", { length: 36 }).notNull().default(sql`auth.uid()`),
+		user_id: varchar("user_id", { length: 36 }).notNull().default('default_user'),
 		name: varchar("name", { length: 200 }).notNull(),
 		description: text("description"),
-		question_ids: jsonb("question_ids").notNull().default(sql`'[]'::jsonb`), // 题目ID数组
-		mode: varchar("mode", { length: 20 }).notNull().default("exam"), // exam/practice
-		time_limit: integer("time_limit"), // 秒
+		question_ids: jsonb("question_ids").notNull().default(sql`'[]'::jsonb`),
+		mode: varchar("mode", { length: 20 }).notNull().default("exam"),
+		time_limit: integer("time_limit"),
 		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 	},
 	(table) => [
