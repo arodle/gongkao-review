@@ -402,6 +402,31 @@ export function PracticeSelector({ onSelectMode }: PracticeSelectorProps) {
   const [sequenceNodeId, setSequenceNodeId] = useState<string>('');
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   
+  // 构建树形结构
+  const buildTree = (nodes: any[]) => {
+    const nodeMap = new Map();
+    const roots: any[] = [];
+    
+    // 先创建所有节点的映射
+    nodes.forEach(node => {
+      nodeMap.set(node.id, { ...node, children: [] });
+    });
+    
+    // 构建父子关系
+    nodes.forEach(node => {
+      const nodeInTree = nodeMap.get(node.id);
+      if (node.parent_id && nodeMap.has(node.parent_id)) {
+        nodeMap.get(node.parent_id).children.push(nodeInTree);
+      } else {
+        roots.push(nodeInTree);
+      }
+    });
+    
+    return roots;
+  };
+  
+  const treeNodes = buildTree(nodes);
+  
   const toggleExpand = (id: string) => {
     setExpandedNodes(prev => {
       const next = new Set(prev);
@@ -539,7 +564,7 @@ export function PracticeSelector({ onSelectMode }: PracticeSelectorProps) {
           </DialogHeader>
           <ScrollArea className="flex-1 -mx-6 px-6">
             <div className="space-y-1 py-2">
-              {nodes.map(node => (
+              {treeNodes.map(node => (
                 <NodeTreeItem
                   key={node.id}
                   node={node}
