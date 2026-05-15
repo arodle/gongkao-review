@@ -47,9 +47,12 @@ function AppContent() {
     syncStatus,
     nodes,
     questionBank,
+    practiceRecords,
     getWeakNodes,
     getNodeStats,
     getQuestionByAngleId,
+    getCorrectQuestionIds,
+    getWrongQuestionIds,
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<AppTab>('mindmap');
@@ -57,8 +60,20 @@ function AppContent() {
   const [isPracticeActive, setIsPracticeActive] = useState(false);
   const [mindmapView, setMindmapView] = useState<'graph' | 'editor'>('graph');
   const [practiceTargetNodeId, setPracticeTargetNodeId] = useState<string | null>(null);
-  const [practiceCount, setPracticeCount] = useState<number>(0); // 0 means all
-  const [answerMode, setAnswerMode] = useState<'instant' | 'batch'>('instant');
+  const [practiceCount, setPracticeCount] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('practiceCount');
+      return saved ? parseInt(saved, 10) : 0;
+    }
+    return 0;
+  });
+  const [answerMode, setAnswerMode] = useState<'instant' | 'batch'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('answerMode');
+      return (saved === 'batch' ? 'batch' : 'instant');
+    }
+    return 'instant';
+  });
 
   useEffect(() => {
     const handleOnline = () => useAppStore.getState().setOnlineStatus(true);
@@ -85,9 +100,24 @@ function AppContent() {
     { id: 'center', label: '个人中心', icon: User },
   ];
 
-  const handleStartPractice = (mode: 'sequence' | 'random' | 'targeted' | 'exam') => {
+  const handleStartPractice = (mode: 'sequence' | 'random' | 'targeted' | 'exam', nodeId?: string) => {
+    if (mode === 'sequence' && nodeId) {
+      setPracticeTargetNodeId(nodeId);
+    } else if (mode !== 'sequence') {
+      setPracticeTargetNodeId(nodeId || null);
+    }
     setPracticeMode(mode);
     setIsPracticeActive(true);
+  };
+
+  const handlePracticeCountChange = (count: number) => {
+    setPracticeCount(count);
+    localStorage.setItem('practiceCount', count.toString());
+  };
+
+  const handleAnswerModeChange = (mode: 'instant' | 'batch') => {
+    setAnswerMode(mode);
+    localStorage.setItem('answerMode', mode);
   };
 
   const handlePracticeComplete = (results: any) => {
@@ -109,6 +139,16 @@ function AppContent() {
   };
 
   const getPracticeQuestions = useCallback((): QuestionBankItem[] => {
+    const correctIds = getCorrectQuestionIds();
+    const wrongIds = getWrongQuestionIds();
+    
+    // 获取错题 + 新题（未做过的题目）
+    // 获取未掌握的题目（新题或错题，排除已答对的题目）
+    const getUnexperiencedQuestions = (allQuestions: QuestionBankItem[]): QuestionBankItem[] => {
+      // 排除已答对的题目，返回新题和错题
+      return allQuestions.filter(q => !correctIds.has(q.id));
+    };
+    
     let questions: QuestionBankItem[];
     
     if (!practiceMode || practiceMode === 'exam') {
@@ -120,10 +160,22 @@ function AppContent() {
         const weakIds = new Set(weakNodes.map(n => n.id));
         questions = questionBank.filter(q => weakIds.has(q.linkedAngleId));
       }
+      // 靶向练习：排除已做对的题目
+      questions = getUnexperiencedQuestions(questions);
     } else if (practiceMode === 'sequence') {
-      questions = [...questionBank].sort((a, b) => a.linkedAngleId.localeCompare(b.linkedAngleId));
+      if (practiceTargetNodeId) {
+        questions = getQuestionByAngleId(practiceTargetNodeId);
+      } else {
+        // 顺序练习：从全部题库按顺序获取
+        questions = [...questionBank].sort((a, b) => a.linkedAngleId.localeCompare(b.linkedAngleId));
+      }
+      // 顺序练习：排除已做对的题目
+      questions = getUnexperiencedQuestions(questions);
     } else {
+      // 随机练习
       questions = [...questionBank].sort(() => Math.random() - 0.5);
+      // 随机练习：排除已做对的题目
+      questions = getUnexperiencedQuestions(questions);
     }
     
     // Apply question count limit if needed
@@ -132,7 +184,7 @@ function AppContent() {
     }
     
     return questions;
-  }, [practiceMode, questionBank, weakNodes, practiceTargetNodeId, getQuestionByAngleId, practiceCount]);
+  }, [practiceMode, questionBank, weakNodes, practiceTargetNodeId, getQuestionByAngleId, practiceCount, getCorrectQuestionIds, getWrongQuestionIds]);
 
   if (!isInitialized) {
     return (
@@ -390,28 +442,28 @@ function AppContent() {
                           <Button
                             variant={practiceCount === 0 ? 'default' : 'outline'}
                             size="sm"
-                            onClick={() => setPracticeCount(0)}
+                            onClick={() => handlePracticeCountChange(0)}
                           >
                             全部
                           </Button>
                           <Button
                             variant={practiceCount === 5 ? 'default' : 'outline'}
                             size="sm"
-                            onClick={() => setPracticeCount(5)}
+                            onClick={() => handlePracticeCountChange(5)}
                           >
                             5
                           </Button>
                           <Button
                             variant={practiceCount === 10 ? 'default' : 'outline'}
                             size="sm"
-                            onClick={() => setPracticeCount(10)}
+                            onClick={() => handlePracticeCountChange(10)}
                           >
                             10
                           </Button>
                           <Button
                             variant={practiceCount === 15 ? 'default' : 'outline'}
                             size="sm"
-                            onClick={() => setPracticeCount(15)}
+                            onClick={() => handlePracticeCountChange(15)}
                           >
                             15
                           </Button>
@@ -424,14 +476,14 @@ function AppContent() {
                           <Button
                             variant={answerMode === 'instant' ? 'default' : 'outline'}
                             size="sm"
-                            onClick={() => setAnswerMode('instant')}
+                            onClick={() => handleAnswerModeChange('instant')}
                           >
                             逐题作答
                           </Button>
                           <Button
                             variant={answerMode === 'batch' ? 'default' : 'outline'}
                             size="sm"
-                            onClick={() => setAnswerMode('batch')}
+                            onClick={() => handleAnswerModeChange('batch')}
                           >
                             整卷提交
                           </Button>

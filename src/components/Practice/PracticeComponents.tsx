@@ -4,6 +4,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/lib/stores/appStore';
 import type { QuestionBankItem } from '@/types';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -23,6 +24,12 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Tabs,
   TabsContent,
   TabsList,
@@ -32,6 +39,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronRight as ChevronRightIcon,
   CheckCircle2,
   XCircle,
   Clock,
@@ -93,10 +102,14 @@ export function QuestionCard({
 
   useEffect(() => {
     setSelectedOption(userAnswer || null);
-    setShowResult(!!userAnswer);
     setStartTime(Date.now());
     setShowExplanation(false);
-  }, [question.id, userAnswer]);
+    if (answerMode === 'instant') {
+      setShowResult(!!userAnswer);
+    } else {
+      setShowResult(false);
+    }
+  }, [question.id, userAnswer, answerMode]);
 
   const handleSelectOption = useCallback((label: string) => {
     if (answerMode === 'batch') {
@@ -322,121 +335,231 @@ export function QuestionCard({
   );
 }
 
+function NodeTreeItem({ node, depth, expandedNodes, selectedNodeId, onToggleExpand, onSelect, getQuestionCount }: { node: any; depth: number; expandedNodes: Set<string>; selectedNodeId: string; onToggleExpand: (id: string) => void; onSelect: (id: string) => void; getQuestionCount: (id: string) => number }) {
+  const isExpanded = expandedNodes.has(node.id);
+  const hasChildren = node.children && node.children.length > 0;
+  const isSelected = selectedNodeId === node.id;
+  const questionCount = getQuestionCount(node.id);
+  
+  return (
+    <div>
+      <div
+        className={cn(
+          'flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-colors',
+          isSelected ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
+        )}
+        style={{ paddingLeft: `${depth * 20 + 8}px` }}
+        onClick={() => onSelect(node.id)}
+      >
+        {hasChildren && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleExpand(node.id); }}
+            className="p-0.5 hover:bg-muted rounded"
+          >
+            {isExpanded ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRightIcon className="h-4 w-4" />
+            )}
+          </button>
+        )}
+        {!hasChildren && <span className="w-5" />}
+        <span className="flex-1 text-sm truncate">{node.name}</span>
+        {questionCount > 0 && (
+          <Badge variant="outline" className="text-xs">{questionCount}题</Badge>
+        )}
+        {isSelected && <CheckCircle2 className="h-4 w-4 text-primary" />}
+      </div>
+      {isExpanded && hasChildren && (
+        <div>
+          {node.children.map((child: any) => (
+            <NodeTreeItem
+              key={child.id}
+              node={child}
+              depth={depth + 1}
+              expandedNodes={expandedNodes}
+              selectedNodeId={selectedNodeId}
+              onToggleExpand={onToggleExpand}
+              onSelect={onSelect}
+              getQuestionCount={getQuestionCount}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface PracticeSelectorProps {
-  onSelectMode: (mode: 'sequence' | 'random' | 'targeted' | 'exam') => void;
+  onSelectMode: (mode: 'sequence' | 'random' | 'targeted' | 'exam', nodeId?: string) => void;
 }
 
 export function PracticeSelector({ onSelectMode }: PracticeSelectorProps) {
-  const { nodes, getWeakNodes } = useAppStore();
+  const { nodes, getWeakNodes, questionBank } = useAppStore();
   const weakNodes = getWeakNodes();
+  
+  const [showSequenceModal, setShowSequenceModal] = useState(false);
+  const [sequenceNodeId, setSequenceNodeId] = useState<string>('');
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  
+  const toggleExpand = (id: string) => {
+    setExpandedNodes(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  
+  const getQuestionCountForNode = (nodeId: string): number => {
+    return questionBank.filter(q => q.linkedAngleId === nodeId).length;
+  };
+  
+  const handleSequenceStart = () => {
+    if (sequenceNodeId) {
+      onSelectMode('sequence', sequenceNodeId);
+      setShowSequenceModal(false);
+    }
+  };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
-      <motion.div
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-      >
-        <Card
-          className="cursor-pointer hover:border-primary transition-colors h-full"
-          onClick={() => onSelectMode('sequence')}
+    <>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-6">
+        <motion.div
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
         >
-          <CardContent className="p-6">
-            <div className="flex items-start gap-4">
-              <div className="p-3 rounded-xl bg-blue-100 dark:bg-blue-900/30">
-                <BookOpen className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+          <Card
+            className="cursor-pointer hover:border-primary transition-colors h-full"
+            onClick={() => setShowSequenceModal(true)}
+          >
+            <CardContent className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 rounded-xl bg-blue-100 dark:bg-blue-900/30">
+                  <BookOpen className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-lg">顺序练习</h3>
+                  <p className="text-sm text-muted-foreground">
+                    选择知识点节点进行练习
+                  </p>
+                  <Badge variant="secondary">{nodes.length} 个知识点</Badge>
+                </div>
               </div>
-              <div className="space-y-2">
-                <h3 className="font-semibold text-lg">顺序练习</h3>
-                <p className="text-sm text-muted-foreground">
-                  按知识图谱层级依次练习，从基础开始稳步提升
-                </p>
-                <Badge variant="secondary">{nodes.length} 个知识点</Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-      <motion.div
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-      >
-        <Card
-          className="cursor-pointer hover:border-primary transition-colors h-full"
-          onClick={() => onSelectMode('random')}
+        <motion.div
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
         >
-          <CardContent className="p-6">
-            <div className="flex items-start gap-4">
-              <div className="p-3 rounded-xl bg-purple-100 dark:bg-purple-900/30">
-                <Target className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+          <Card
+            className="cursor-pointer hover:border-primary transition-colors h-full"
+            onClick={() => onSelectMode('random')}
+          >
+            <CardContent className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 rounded-xl bg-purple-100 dark:bg-purple-900/30">
+                  <Target className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-lg">随机练习</h3>
+                  <p className="text-sm text-muted-foreground">
+                    从全部题库随机抽取，全面覆盖各个知识点
+                  </p>
+                  <Badge variant="secondary">随机打乱</Badge>
+                </div>
               </div>
-              <div className="space-y-2">
-                <h3 className="font-semibold text-lg">随机练习</h3>
-                <p className="text-sm text-muted-foreground">
-                  从全部题库随机抽取，全面覆盖各个知识点
-                </p>
-                <Badge variant="secondary">随机打乱</Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-      <motion.div
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-      >
-        <Card
-          className="cursor-pointer hover:border-primary transition-colors h-full relative overflow-hidden"
-          onClick={() => onSelectMode('targeted')}
+        <motion.div
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
         >
-          {weakNodes.length > 0 && (
-            <div className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-bl-lg">
-              {weakNodes.length} 个薄弱点
-            </div>
-          )}
-          <CardContent className="p-6">
-            <div className="flex items-start gap-4">
-              <div className="p-3 rounded-xl bg-orange-100 dark:bg-orange-900/30">
-                <AlertTriangle className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+          <Card
+            className="cursor-pointer hover:border-primary transition-colors h-full relative overflow-hidden"
+            onClick={() => onSelectMode('targeted')}
+          >
+            {weakNodes.length > 0 && (
+              <div className="absolute top-0 right-0 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-bl-lg">
+                {weakNodes.length} 个薄弱点
               </div>
-              <div className="space-y-2">
-                <h3 className="font-semibold text-lg">靶向练习</h3>
-                <p className="text-sm text-muted-foreground">
-                  专注练习 PS &lt; 80 的薄弱知识点，针对性强化
-                </p>
-                <Badge variant="destructive">针对薄弱点</Badge>
+            )}
+            <CardContent className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 rounded-xl bg-orange-100 dark:bg-orange-900/30">
+                  <AlertTriangle className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-lg">靶向练习</h3>
+                  <p className="text-sm text-muted-foreground">
+                    专注练习 PS &lt; 80 的薄弱知识点，针对性强化
+                  </p>
+                  <Badge variant="destructive">针对薄弱点</Badge>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-      <motion.div
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-      >
-        <Card
-          className="cursor-pointer hover:border-primary transition-colors h-full"
-          onClick={() => onSelectMode('exam')}
+        <motion.div
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
         >
-          <CardContent className="p-6">
-            <div className="flex items-start gap-4">
-              <div className="p-3 rounded-xl bg-green-100 dark:bg-green-900/30">
-                <Clock className="h-6 w-6 text-green-600 dark:text-green-400" />
+          <Card
+            className="cursor-pointer hover:border-primary transition-colors h-full"
+            onClick={() => onSelectMode('exam')}
+          >
+            <CardContent className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="p-3 rounded-xl bg-green-100 dark:bg-green-900/30">
+                  <Clock className="h-6 w-6 text-green-600 dark:text-green-400" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-lg">套卷练习</h3>
+                  <p className="text-sm text-muted-foreground">
+                    完整试卷定时模拟，检验整体学习效果
+                  </p>
+                  <Badge variant="secondary">计时模式</Badge>
+                </div>
               </div>
-              <div className="space-y-2">
-                <h3 className="font-semibold text-lg">套卷练习</h3>
-                <p className="text-sm text-muted-foreground">
-                  完整试卷定时模拟，检验整体学习效果
-                </p>
-                <Badge variant="secondary">计时模式</Badge>
-              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+      
+      {/* 顺序练习节点选择弹窗 */}
+      <Dialog open={showSequenceModal} onOpenChange={setShowSequenceModal}>
+        <DialogContent className="max-w-md max-h-[70vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>选择知识点</DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="flex-1 -mx-6 px-6">
+            <div className="space-y-1 py-2">
+              {nodes.map(node => (
+                <NodeTreeItem
+                  key={node.id}
+                  node={node}
+                  depth={0}
+                  expandedNodes={expandedNodes}
+                  selectedNodeId={sequenceNodeId}
+                  onToggleExpand={toggleExpand}
+                  onSelect={setSequenceNodeId}
+                  getQuestionCount={getQuestionCountForNode}
+                />
+              ))}
             </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-    </div>
+          </ScrollArea>
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <Button variant="outline" onClick={() => setShowSequenceModal(false)}>取消</Button>
+            <Button onClick={handleSequenceStart} disabled={!sequenceNodeId}>开始练习</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

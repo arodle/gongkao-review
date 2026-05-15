@@ -48,6 +48,8 @@ interface AppState {
   getQuestionByAngleId: (angleId: string) => QuestionBankItem[];
   getNodeStats: (nodeId: string) => { correct: number; wrong: number };
   getWrongAnswersByNodeId: (nodeId: string) => PracticeRecord[];
+  getCorrectQuestionIds: () => Set<string>;
+  getWrongQuestionIds: () => Set<string>;
   addQuestion: (question: QuestionBankItem) => void;
   updateQuestion: (question: QuestionBankItem) => void;
   deleteQuestion: (questionId: string) => void;
@@ -193,6 +195,22 @@ export const useAppStore = create<AppState>((set, get) => ({
   getWrongAnswersByNodeId: (nodeId: string) => {
     return get().practiceRecords.filter(r =>
       r.source_node_ids.includes(nodeId) && !r.is_correct
+    );
+  },
+
+  getCorrectQuestionIds: () => {
+    return new Set(
+      get().practiceRecords
+        .filter(r => r.is_correct)
+        .map(r => r.question_id)
+    );
+  },
+
+  getWrongQuestionIds: () => {
+    return new Set(
+      get().practiceRecords
+        .filter(r => !r.is_correct)
+        .map(r => r.question_id)
     );
   },
 
