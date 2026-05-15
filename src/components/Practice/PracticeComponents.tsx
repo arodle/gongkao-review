@@ -603,6 +603,7 @@ export function PracticeSession({ questions, mode, answerMode = 'instant', onCom
   const [elapsedTime, setElapsedTime] = useState(0);
   const [userAnswers, setUserAnswers] = useState<{ [key: number]: string }>({});
   const [isRunning, setIsRunning] = useState(true);
+  const [isSubmitted, setIsSubmitted] = useState(false); // 新增状态：是否已提交
   const { updateNodePSScore, addAnswer } = useAppStore();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -684,11 +685,13 @@ export function PracticeSession({ questions, mode, answerMode = 'instant', onCom
 
   const handleSubmit = useCallback(async () => {
     setIsRunning(false);
+    setIsSubmitted(true); // 标记为已提交
 
     if (answerMode === 'batch') {
       const unanswered = questions.some((_, i) => !userAnswers[i]);
       if (unanswered) {
         setIsRunning(true);
+        setIsSubmitted(false); // 恢复状态
         alert('请完成所有题目再提交！');
         return;
       }
@@ -804,7 +807,7 @@ export function PracticeSession({ questions, mode, answerMode = 'instant', onCom
         canGoPrev={currentIndex > 0}
         canGoNext={currentIndex < questions.length - 1}
         isLastQuestion={currentIndex === questions.length - 1}
-        hasAnswered={answerMode === 'batch' ? hasAnsweredAll : hasAnsweredCurrent}
+        hasAnswered={answerMode === 'batch' ? isSubmitted : hasAnsweredCurrent} // 修改这里
         elapsedTime={elapsedTime}
         answerMode={answerMode}
         userAnswer={currentUserAnswer}
