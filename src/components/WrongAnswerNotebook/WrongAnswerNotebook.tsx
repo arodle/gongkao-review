@@ -444,7 +444,7 @@ export function WrongAnswerNotebook() {
           </select>
         </div>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="h-[calc(100vh-220px)]">
           {filteredWrongAnswers.length > 0 ? (
             <div>
               {filteredWrongAnswers.map((item) => (
@@ -505,7 +505,7 @@ export function WrongAnswerNotebook() {
               </Button>
             </div>
 
-            <ScrollArea className="flex-1" ref={notePanelRef}>
+            <ScrollArea className="h-[calc(100vh-120px)]" ref={notePanelRef}>
               <div className="p-4 space-y-4">
                 <div className="p-3 rounded-lg bg-muted/50">
                   <p className="text-xs text-muted-foreground line-clamp-3">

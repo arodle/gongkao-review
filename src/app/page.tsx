@@ -352,7 +352,7 @@ function AppContent() {
               exit={{ opacity: 0, x: 20 }}
               className="h-full flex flex-col"
             >
-              <ScrollArea className="flex-1">
+              <ScrollArea className="h-[calc(100vh-180px)]">
                 <div className="max-w-4xl mx-auto py-8 px-4">
                   <div className="text-center mb-8">
                     <h2 className="text-2xl font-bold mb-2">选择练习模式</h2>
@@ -463,7 +463,7 @@ function AppContent() {
               exit={{ opacity: 0 }}
               className="h-full flex flex-col"
             >
-              <ScrollArea className="flex-1">
+              <ScrollArea className="h-[calc(100vh-180px)]">
                 <div className="max-w-2xl mx-auto py-8 px-4">
                   <PracticeSession
                     questions={getPracticeQuestions()}
