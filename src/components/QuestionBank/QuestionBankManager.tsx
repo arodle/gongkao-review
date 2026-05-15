@@ -485,7 +485,7 @@ export function QuestionBankManager() {
         className="hidden"
       />
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="h-[calc(100vh-300px)]">
         <div className="p-4">
           {filteredQuestions.length > 0 ? (
             <div className="space-y-2">
