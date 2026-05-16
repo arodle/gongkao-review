@@ -24,6 +24,19 @@ import {
 import { calculatePS, SCENARIO_COEFFICIENTS } from '@/lib/services/psCalculator';
 import { v4 as uuidv4 } from 'uuid';
 
+// 从 API 获取题目
+async function getAllQuestionsFromAPI(): Promise<QuestionBankItem[]> {
+  try {
+    const response = await fetch('/api/questions');
+    if (!response.ok) throw new Error('Failed to fetch');
+    const data = await response.json();
+    return data.questions || [];
+  } catch (error) {
+    console.warn('API fetch failed:', error);
+    throw error;
+  }
+}
+
 interface AppState {
   nodes: KnowledgeNodeRecord[];
   practiceRecords: PracticeRecord[];
@@ -81,13 +94,20 @@ export const useAppStore = create<AppState>((set, get) => ({
         nodes = await getNodesByUser();
         set({ questionBank: result.questionBank });
       } else {
-        const { SAMPLE_QUESTION_BANK } = await import('@/lib/sample-data');
-        // 确保所有题目都有images字段
-        const questionBankWithImages = SAMPLE_QUESTION_BANK.map(q => ({
-          ...q,
-          images: q.images || []
-        }));
-        set({ questionBank: questionBankWithImages });
+        // 从 API 读取题目
+        try {
+          const apiQuestions = await getAllQuestionsFromAPI();
+          set({ questionBank: apiQuestions });
+        } catch (apiError) {
+          console.warn('Failed to read from API, falling back to sample data:', apiError);
+          // 如果 API 读取失败，回退到示例数据
+          const { SAMPLE_QUESTION_BANK } = await import('@/lib/sample-data');
+          const questionBankWithImages = SAMPLE_QUESTION_BANK.map(q => ({
+            ...q,
+            images: q.images || []
+          }));
+          set({ questionBank: questionBankWithImages });
+        }
       }
 
       const records = await db.practice_records.where('user_id').equals(CURRENT_USER_ID).toArray();
