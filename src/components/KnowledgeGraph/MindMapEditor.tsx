@@ -359,13 +359,20 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
   }, []);
 
   const handleAddChild = useCallback((parentId: string) => {
+    const parentNode = parentId ? nodes.find(n => n.id === parentId) : null;
+    const nextType: 'subject' | 'knowledge' | 'subknowledge' | 'angle' =
+      !parentNode ? 'knowledge' :
+      parentNode.node_type === 'subject' ? 'knowledge' :
+      parentNode.node_type === 'knowledge' ? 'subknowledge' :
+      parentNode.node_type === 'subknowledge' ? 'angle' :
+      'subknowledge';
     setAddParentId(parentId);
     setAddForm({
       name: '',
-      type: 'subknowledge',
+      type: nextType,
     });
     setShowAddDialog(true);
-  }, []);
+  }, [nodes]);
 
   const handleSaveEdit = useCallback(() => {
     if (!editingNode) return;
@@ -384,13 +391,14 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
 
     try {
       const parentNode = addParentId ? nodes.find(n => n.id === addParentId) : null;
+      const siblingCount = nodes.filter(n => n.parent_id === addParentId).length;
 
       useAppStore.getState().addNode({
         id: `${addForm.type}_${Date.now()}`,
         name: addForm.name,
         parent_id: addParentId,
         pos_x: parentNode ? parentNode.pos_x + 200 : 0,
-        pos_y: parentNode ? parentNode.pos_y + 100 : 0,
+        pos_y: parentNode ? parentNode.pos_y + siblingCount * 60 : 0,
         node_type: addForm.type,
       });
 
