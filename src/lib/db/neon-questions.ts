@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { neon } from '@neondatabase/serverless';
 import { v4 as uuidv4 } from 'uuid';
-import type { QuestionBankItem } from '@/types';
+import type { QuestionBankItem, QuestionOption } from '@/types';
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is not set');
@@ -21,11 +21,11 @@ export async function getAllQuestions(): Promise<QuestionBankItem[]> {
     id: row.id,
     content: row.question_text,
     options: [
-      { label: 'A', text: row.option_a },
-      { label: 'B', text: row.option_b },
-      row.option_c ? { label: 'C', text: row.option_c } : null,
-      row.option_d ? { label: 'D', text: row.option_d } : null,
-    ].filter(Boolean),
+        { label: 'A', text: row.option_a },
+        { label: 'B', text: row.option_b } as QuestionOption,
+        row.option_c ? ({ label: 'C', text: row.option_c } as QuestionOption) : null,
+        row.option_d ? ({ label: 'D', text: row.option_d } as QuestionOption) : null,
+      ].filter((o): o is QuestionOption => o !== null),
     correctAnswer: row.correct_answer,
     explanation: row.explanation,
     linkedAngleId: row.linked_angle_id,

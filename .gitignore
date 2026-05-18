@@ -99,3 +99,4 @@ Desktop.ini
 
 .coze-logs
 .pnpm-store
+.env*.local

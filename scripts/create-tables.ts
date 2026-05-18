@@ -18,6 +18,51 @@ async function checkTables() {
     console.log('\n📦 开始创建表...');
     
     await sql`
+      CREATE TABLE IF NOT EXISTS "knowledge_nodes" (
+        "id" varchar(36) PRIMARY KEY,
+        "user_id" varchar(36) NOT NULL DEFAULT 'default_user',
+        "name" varchar(255) NOT NULL,
+        "parent_id" varchar(36),
+        "pos_x" integer DEFAULT 0,
+        "pos_y" integer DEFAULT 0,
+        "ps_score" integer DEFAULT 50 NOT NULL,
+        "last_practiced_at" timestamp with time zone,
+        "color_tag" varchar(50) DEFAULT 'default',
+        "node_type" varchar(20) NOT NULL,
+        "content" text,
+        "annotation" text,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+        "updated_at" timestamp with time zone DEFAULT now()
+      )
+    `;
+    console.log('✅ knowledge_nodes 表已创建');
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS "practice_records" (
+        "id" varchar(36) PRIMARY KEY,
+        "user_id" varchar(36) NOT NULL DEFAULT 'default_user',
+        "question_id" varchar(36) NOT NULL,
+        "is_correct" boolean NOT NULL,
+        "answer_time" integer DEFAULT 0,
+        "source_node_ids" jsonb DEFAULT '[]'::jsonb,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+        "updated_at" timestamp with time zone DEFAULT now()
+      )
+    `;
+    console.log('✅ practice_records 表已创建');
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS "ps_history" (
+        "id" varchar(36) PRIMARY KEY,
+        "node_id" varchar(36) NOT NULL,
+        "ps_score" integer NOT NULL,
+        "recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
+        "user_id" varchar(36) NOT NULL DEFAULT 'default_user'
+      )
+    `;
+    console.log('✅ ps_history 表已创建');
+
+    await sql`
       CREATE TABLE IF NOT EXISTS "question_bank" (
         "id" varchar(36) PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "user_id" varchar(36) NOT NULL DEFAULT 'default_user',

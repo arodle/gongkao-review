@@ -7,7 +7,7 @@ export const healthCheck = pgTable("health_check", {
 	updatedAt: timestamp("updated_at", { withTimezone: true, mode: 'string' }).defaultNow(),
 });
 
-// 思维导图表
+// 思维导图表（保留兼容，data 为 JSON 快照）
 export const mindMaps = pgTable(
 	"mind_maps",
 	{
@@ -20,6 +20,70 @@ export const mindMaps = pgTable(
 	},
 	(table) => [
 		index("mind_maps_user_id_idx").on(table.user_id),
+	]
+);
+
+// 知识点节点表 - 每个知识点一条独立记录
+export const knowledgeNodes = pgTable(
+	"knowledge_nodes",
+	{
+		id: varchar("id", { length: 36 }).primaryKey(),
+		user_id: varchar("user_id", { length: 36 }).notNull().default('default_user'),
+		name: varchar("name", { length: 255 }).notNull(),
+		parent_id: varchar("parent_id", { length: 36 }),
+		pos_x: integer("pos_x").default(0),
+		pos_y: integer("pos_y").default(0),
+		ps_score: integer("ps_score").default(50).notNull(),
+		last_practiced_at: timestamp("last_practiced_at", { withTimezone: true }),
+		color_tag: varchar("color_tag", { length: 50 }).default('default'),
+		node_type: varchar("node_type", { length: 20 }).notNull(),
+		content: text("content"),
+		annotation: text("annotation"),
+		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+	},
+	(table) => [
+		index("knowledge_nodes_user_id_idx").on(table.user_id),
+		index("knowledge_nodes_parent_id_idx").on(table.parent_id),
+		index("knowledge_nodes_node_type_idx").on(table.node_type),
+		index("knowledge_nodes_ps_score_idx").on(table.ps_score),
+	]
+);
+
+// 练习记录表
+export const practiceRecords = pgTable(
+	"practice_records",
+	{
+		id: varchar("id", { length: 36 }).primaryKey(),
+		user_id: varchar("user_id", { length: 36 }).notNull().default('default_user'),
+		question_id: varchar("question_id", { length: 36 }).notNull(),
+		is_correct: boolean("is_correct").notNull(),
+		answer_time: integer("answer_time").default(0),
+		source_node_ids: jsonb("source_node_ids").default(sql`'[]'::jsonb`),
+		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+	},
+	(table) => [
+		index("practice_records_user_id_idx").on(table.user_id),
+		index("practice_records_question_id_idx").on(table.question_id),
+		index("practice_records_created_at_idx").on(table.created_at),
+	]
+);
+
+// PS分数历史表
+export const psHistory = pgTable(
+	"ps_history",
+	{
+		id: varchar("id", { length: 36 }).primaryKey(),
+		node_id: varchar("node_id", { length: 36 }).notNull(),
+		ps_score: integer("ps_score").notNull(),
+		recorded_at: timestamp("recorded_at", { withTimezone: true }).defaultNow().notNull(),
+		user_id: varchar("user_id", { length: 36 }).notNull().default('default_user'),
+	},
+	(table) => [
+		index("ps_history_node_id_idx").on(table.node_id),
+		index("ps_history_user_id_idx").on(table.user_id),
+		index("ps_history_recorded_at_idx").on(table.recorded_at),
 	]
 );
 
@@ -39,6 +103,8 @@ export const questionBank = pgTable(
 		knowledge_path: varchar("knowledge_path", { length: 500 }),
 		linked_angle_id: varchar("linked_angle_id", { length: 100 }),
 		source: varchar("source", { length: 50 }).notNull().default("manual"),
+		type: varchar("type", { length: 20 }).default("real"),
+		reference: varchar("reference", { length: 500 }),
 		mind_map_id: varchar("mind_map_id", { length: 36 }),
 		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 	},
@@ -50,7 +116,7 @@ export const questionBank = pgTable(
 	]
 );
 
-// 做题记录表
+// 做题记录表（考试记录）
 export const answerRecords = pgTable(
 	"answer_records",
 	{
