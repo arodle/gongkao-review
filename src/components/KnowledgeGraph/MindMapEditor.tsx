@@ -365,7 +365,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
       parentNode.node_type === 'subject' ? 'knowledge' :
       parentNode.node_type === 'knowledge' ? 'subknowledge' :
       parentNode.node_type === 'subknowledge' ? 'angle' :
-      'subknowledge';
+      'angle';
     setAddParentId(parentId);
     setAddForm({
       name: '',
