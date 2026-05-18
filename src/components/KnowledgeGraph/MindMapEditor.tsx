@@ -367,48 +367,32 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
     setShowAddDialog(true);
   }, []);
 
-  const handleSaveEdit = useCallback(async () => {
+  const handleSaveEdit = useCallback(() => {
     if (!editingNode) return;
-
-    try {
-      const { db } = await import('@/lib/db/database');
-      await db.knowledge_nodes.update(editingNode.id, {
-        name: editForm.name,
-        content: editForm.content || undefined,
-        annotation: editForm.annotation || undefined,
-        updated_at: new Date().toISOString(),
-      });
-
-      await useAppStore.getState().initialize();
-      setShowEditDialog(false);
-      setEditingNode(null);
-    } catch (error) {
-      console.error('Failed to update node:', error);
-    }
+    useAppStore.getState().updateNode({
+      id: editingNode.id,
+      name: editForm.name,
+      content: editForm.content || undefined,
+      annotation: editForm.annotation || undefined,
+    });
+    setShowEditDialog(false);
+    setEditingNode(null);
   }, [editingNode, editForm]);
 
   const handleSaveAdd = useCallback(async () => {
     if (!addForm.name.trim()) return;
 
     try {
-      const { db, CURRENT_USER_ID } = await import('@/lib/db/database');
       const parentNode = addParentId ? nodes.find(n => n.id === addParentId) : null;
 
-      const newNode: KnowledgeNodeRecord = {
+      useAppStore.getState().addNode({
         id: `${addForm.type}_${Date.now()}`,
-        user_id: CURRENT_USER_ID,
         name: addForm.name,
         parent_id: addParentId,
         pos_x: parentNode ? parentNode.pos_x + 200 : 0,
         pos_y: parentNode ? parentNode.pos_y + 100 : 0,
-        ps_score: 50,
-        last_practiced_at: null,
-        color_tag: 'default',
         node_type: addForm.type,
-        updated_at: new Date().toISOString(),
-      };
-
-      await db.knowledge_nodes.add(newNode);
+      });
 
       await createSafetySnapshot('添加节点');
 
@@ -416,7 +400,6 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
         setExpandedNodes(prev => new Set([...prev, addParentId]));
       }
 
-      await useAppStore.getState().initialize();
       setShowAddDialog(false);
       setAddParentId(null);
     } catch (error) {
@@ -429,26 +412,15 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
 
     try {
       await createSafetySnapshot('删除节点');
+      useAppStore.getState().deleteNode(nodeId);
 
-      const { db } = await import('@/lib/db/database');
-      const toDelete = new Set<string>();
-
-      const collectChildren = (id: string) => {
-        toDelete.add(id);
-        nodes.filter(n => n.parent_id === id).forEach(n => collectChildren(n.id));
-      };
-      collectChildren(nodeId);
-
-      await db.knowledge_nodes.bulkDelete(Array.from(toDelete));
-      await useAppStore.getState().initialize();
-
-      if (selectedNode && toDelete.has(selectedNode.id)) {
+      if (selectedNode?.id === nodeId) {
         setSelectedNode(null);
       }
     } catch (error) {
       console.error('Failed to delete node:', error);
     }
-  }, [nodes, selectedNode, createSafetySnapshot]);
+  }, [selectedNode, createSafetySnapshot]);
 
   const handleCopyNode = useCallback(async (node: KnowledgeNodeRecord) => {
     setAddForm({
