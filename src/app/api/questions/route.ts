@@ -51,8 +51,8 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const sql = getSql();
-    const question: Omit<QuestionBankItem, 'id' | 'createdAt'> = await request.json();
-    const id = uuidv4();
+    const body = await request.json();
+    const id = body.id || uuidv4();
 
     await sql`
       INSERT INTO question_bank (
@@ -62,18 +62,18 @@ export async function POST(request: Request) {
       ) VALUES (
         ${id},
         'default_user',
-        ${question.content},
-        ${question.options.find(o => o.label === 'A')?.text},
-        ${question.options.find(o => o.label === 'B')?.text},
-        ${question.options.find(o => o.label === 'C')?.text},
-        ${question.options.find(o => o.label === 'D')?.text},
-        ${question.correctAnswer},
-        ${question.explanation},
-        ${question.knowledgePath},
-        ${question.linkedAngleId},
-        ${question.source || 'manual'},
-        ${(question as any).type || 'real'},
-        ${(question as any).reference || ''},
+        ${body.content},
+        ${body.options?.find((o: any) => o.label === 'A')?.text},
+        ${body.options?.find((o: any) => o.label === 'B')?.text},
+        ${body.options?.find((o: any) => o.label === 'C')?.text},
+        ${body.options?.find((o: any) => o.label === 'D')?.text},
+        ${body.correctAnswer},
+        ${body.explanation},
+        ${body.knowledgePath},
+        ${body.linkedAngleId},
+        ${body.source || 'manual'},
+        ${body.type || 'real'},
+        ${body.reference || ''},
         NOW()
       )
     `;
@@ -89,26 +89,26 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const sql = getSql();
-    const question: QuestionBankItem = await request.json();
+    const body = await request.json();
 
     await sql`
       UPDATE question_bank SET
-        question_text = ${question.content},
-        option_a = ${question.options.find(o => o.label === 'A')?.text},
-        option_b = ${question.options.find(o => o.label === 'B')?.text},
-        option_c = ${question.options.find(o => o.label === 'C')?.text},
-        option_d = ${question.options.find(o => o.label === 'D')?.text},
-        correct_answer = ${question.correctAnswer},
-        explanation = ${question.explanation},
-        knowledge_path = ${question.knowledgePath},
-        linked_angle_id = ${question.linkedAngleId},
-        source = ${question.source},
-        type = ${(question as any).type || 'real'},
-        reference = ${(question as any).reference || ''}
-      WHERE id = ${question.id}
+        question_text = ${body.content},
+        option_a = ${body.options?.find((o: any) => o.label === 'A')?.text},
+        option_b = ${body.options?.find((o: any) => o.label === 'B')?.text},
+        option_c = ${body.options?.find((o: any) => o.label === 'C')?.text},
+        option_d = ${body.options?.find((o: any) => o.label === 'D')?.text},
+        correct_answer = ${body.correctAnswer},
+        explanation = ${body.explanation},
+        knowledge_path = ${body.knowledgePath},
+        linked_angle_id = ${body.linkedAngleId},
+        source = ${body.source},
+        type = ${body.type || 'real'},
+        reference = ${body.reference || ''}
+      WHERE id = ${body.id}
     `;
 
-    const [row] = await sql`SELECT * FROM question_bank WHERE id = ${question.id}` as any;
+    const [row] = await sql`SELECT * FROM question_bank WHERE id = ${body.id}` as any;
     return NextResponse.json({ question: rowToQuestion(row) });
   } catch (error) {
     console.error('Failed to update question:', error);

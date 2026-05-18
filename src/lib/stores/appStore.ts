@@ -102,7 +102,7 @@ async function addPSHistoryAPI(record: PSHistoryRecord): Promise<void> {
   });
 }
 
-async function addQuestionAPI(question: Omit<QuestionBankItem, 'id' | 'createdAt'>): Promise<QuestionBankItem | null> {
+async function addQuestionAPI(question: QuestionBankItem): Promise<QuestionBankItem | null> {
   try {
     const data = await fetchFromAPI<{ question: QuestionBankItem }>('/api/questions', {
       method: 'POST',
@@ -110,7 +110,10 @@ async function addQuestionAPI(question: Omit<QuestionBankItem, 'id' | 'createdAt
       body: JSON.stringify(question),
     });
     return data.question;
-  } catch { return null; }
+  } catch (err) {
+    console.error('addQuestion API failed:', err);
+    return null;
+  }
 }
 
 async function updateQuestionAPI(question: QuestionBankItem): Promise<void> {
@@ -230,7 +233,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       lastPracticedAt: lastPracticed,
     });
 
-    await updateNodePSAPI(nodeId, newPS).catch(console.error);
+    await updateNodePSAPI(nodeId, newPS).catch(err => console.error('updateNodePS API failed:', err));
 
     const historyRecord: PSHistoryRecord = {
       id: uuidv4(),
@@ -239,7 +242,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       recorded_at: new Date().toISOString(),
       user_id: CURRENT_USER_ID,
     };
-    await addPSHistoryAPI(historyRecord).catch(console.error);
+    await addPSHistoryAPI(historyRecord).catch(err => console.error('addPSHistory API failed:', err));
 
     set(state => ({
       nodes: state.nodes.map(n =>
@@ -262,7 +265,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       updated_at: new Date().toISOString(),
     };
 
-    addPracticeRecordAPI(dbRecord).catch(console.error);
+    addPracticeRecordAPI(dbRecord).catch(err => console.error('addPracticeRecord API failed:', err));
 
     set(state => ({
       answerRecords: [...state.answerRecords, record],
@@ -353,14 +356,22 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   addQuestion: (question: QuestionBankItem) => {
-    addQuestionAPI(question).catch(console.error);
+    addQuestionAPI(question).then((saved) => {
+      if (saved && saved.id !== question.id) {
+        set(state => ({
+          questionBank: state.questionBank.map(q =>
+            q.id === question.id ? saved : q
+          ),
+        }));
+      }
+    }).catch(console.error);
     set(state => ({
       questionBank: [...state.questionBank, question],
     }));
   },
 
   updateQuestion: (question: QuestionBankItem) => {
-    updateQuestionAPI(question);
+    updateQuestionAPI(question).catch(err => console.error('updateQuestion API failed:', err));
     set(state => ({
       questionBank: state.questionBank.map(q =>
         q.id === question.id ? question : q
@@ -369,7 +380,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   deleteQuestion: (questionId: string) => {
-    deleteQuestionAPI(questionId);
+    deleteQuestionAPI(questionId).catch(err => console.error('deleteQuestion API failed:', err));
     set(state => ({
       questionBank: state.questionBank.filter(q => q.id !== questionId),
     }));
@@ -392,7 +403,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const existing = state.nodes.find(n => n.id === node.id);
     if (existing) {
       const updated: KnowledgeNodeRecord = { ...existing, ...node };
-      upsertNodeAPI(updated).catch(console.error);
+      upsertNodeAPI(updated).catch(err => console.error('updateNode API failed:', err));
     }
     set(state => ({
       nodes: state.nodes.map(n =>
@@ -410,14 +421,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       color_tag: 'default',
       updated_at: new Date().toISOString(),
     };
-    upsertNodeAPI(newNode).catch(console.error);
+    upsertNodeAPI(newNode).catch(err => console.error('addNode API failed:', err));
     set(state => ({
       nodes: [...state.nodes, newNode],
     }));
   },
 
   deleteNode: (nodeId: string) => {
-    deleteNodeAPI(nodeId).catch(console.error);
+    deleteNodeAPI(nodeId).catch(err => console.error('deleteNode API failed:', err));
     set(state => {
       const childIds = new Set<string>();
       
