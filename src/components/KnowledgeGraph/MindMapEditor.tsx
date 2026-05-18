@@ -475,7 +475,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
             animate={{ width: 320, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="border-r bg-background flex flex-col"
+            className="border-r bg-background flex flex-col overflow-hidden"
           >
             <div className="p-3 border-b space-y-2">
               <div className="flex items-center gap-2">
@@ -513,7 +513,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
               </div>
             </div>
 
-            <ScrollArea className="flex-1">
+            <ScrollArea className="h-0 flex-1 min-h-0">
               <div className="p-2">
                 {rootNodes.map((node) => (
                   <NodeTreeItem
@@ -539,8 +539,8 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
         )}
       </AnimatePresence>
 
-      <div className="flex-1 flex flex-col">
-        <div className="p-3 border-b flex items-center justify-between">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="p-3 border-b flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
@@ -559,7 +559,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
           </div>
         </div>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="h-0 flex-1 min-h-0">
           <div className="p-6">
             {selectedNode ? (
               <div className="max-w-3xl mx-auto space-y-6">
