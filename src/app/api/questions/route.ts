@@ -1,133 +1,125 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
-import { v4 as uuidv4 } from 'uuid';
-import type { QuestionBankItem, QuestionOption } from '@/types';
-
-function getSql() {
-  if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL is not configured');
-  }
-  return neon(process.env.DATABASE_URL);
-}
-
-function rowToQuestion(row: any): QuestionBankItem {
-  return {
-    id: row.id,
-    content: row.question_text,
-    options: [
-      { label: 'A', text: row.option_a },
-      { label: 'B', text: row.option_b } as QuestionOption,
-      row.option_c ? ({ label: 'C', text: row.option_c } as QuestionOption) : null,
-      row.option_d ? ({ label: 'D', text: row.option_d } as QuestionOption) : null,
-    ].filter((o): o is QuestionOption => o !== null),
-    correctAnswer: row.correct_answer,
-    explanation: row.explanation,
-    linkedAngleId: row.linked_angle_id,
-    linkedAngleName: '',
-    knowledgePath: row.knowledge_path,
-    source: row.source,
-    type: row.type || 'real',
-    reference: row.reference || '',
-    createdAt: row.created_at,
-    images: [],
-  };
-}
+import type { QuestionBankItem } from '@/types';
 
 export async function GET() {
   try {
-    const sql = getSql();
+    if (!process.env.DATABASE_URL) {
+      return NextResponse.json(
+        { error: 'DATABASE_URL is not configured' },
+        { status: 500 }
+      );
+    }
+
+    const sql = neon(process.env.DATABASE_URL);
+
     const result = await sql`
       SELECT * FROM question_bank
       ORDER BY created_at DESC
     `;
-    const questions: QuestionBankItem[] = result.map(rowToQuestion);
+
+    const questions: QuestionBankItem[] = result.map((row: any) => ({
+      id: row.id,
+      content: row.question_text,
+      options: [
+        { label: 'A', text: row.option_a },
+        { label: 'B', text: row.option_b },
+        row.option_c ? { label: 'C', text: row.option_c } : null,
+        row.option_d ? { label: 'D', text: row.option_d } : null,
+      ].filter(Boolean),
+      correctAnswer: row.correct_answer,
+      explanation: row.explanation,
+      linkedAngleId: row.linked_angle_id,
+      linkedAngleName: '',
+      knowledgePath: row.knowledge_path,
+      source: row.source,
+      createdAt: row.created_at,
+      images: [],
+    }));
+
     return NextResponse.json({ questions });
   } catch (error) {
     console.error('Failed to fetch questions:', error);
-    return NextResponse.json({ error: 'Failed to fetch questions' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch questions' },
+      { status: 500 }
+    );
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const sql = getSql();
-    const body = await request.json();
-    const id = body.id || uuidv4();
-
-    await sql`
-      INSERT INTO question_bank (
-        id, user_id, question_text, option_a, option_b, option_c, option_d,
-        correct_answer, explanation, knowledge_path, linked_angle_id, source,
-        type, reference, created_at
-      ) VALUES (
-        ${id},
-        'default_user',
-        ${body.content},
-        ${body.options?.find((o: any) => o.label === 'A')?.text},
-        ${body.options?.find((o: any) => o.label === 'B')?.text},
-        ${body.options?.find((o: any) => o.label === 'C')?.text},
-        ${body.options?.find((o: any) => o.label === 'D')?.text},
-        ${body.correctAnswer},
-        ${body.explanation},
-        ${body.knowledgePath},
-        ${body.linkedAngleId},
-        ${body.source || 'manual'},
-        ${body.type || 'real'},
-        ${body.reference || ''},
-        NOW()
-      )
-    `;
-
-    const [row] = await sql`SELECT * FROM question_bank WHERE id = ${id}` as any;
-    return NextResponse.json({ question: rowToQuestion(row) });
-  } catch (error) {
-    console.error('Failed to add question:', error);
-    return NextResponse.json({ error: 'Failed to add question' }, { status: 500 });
-  }
-}
-
-export async function PATCH(request: Request) {
-  try {
-    const sql = getSql();
-    const body = await request.json();
-
-    await sql`
-      UPDATE question_bank SET
-        question_text = ${body.content},
-        option_a = ${body.options?.find((o: any) => o.label === 'A')?.text},
-        option_b = ${body.options?.find((o: any) => o.label === 'B')?.text},
-        option_c = ${body.options?.find((o: any) => o.label === 'C')?.text},
-        option_d = ${body.options?.find((o: any) => o.label === 'D')?.text},
-        correct_answer = ${body.correctAnswer},
-        explanation = ${body.explanation},
-        knowledge_path = ${body.knowledgePath},
-        linked_angle_id = ${body.linkedAngleId},
-        source = ${body.source},
-        type = ${body.type || 'real'},
-        reference = ${body.reference || ''}
-      WHERE id = ${body.id}
-    `;
-
-    const [row] = await sql`SELECT * FROM question_bank WHERE id = ${body.id}` as any;
-    return NextResponse.json({ question: rowToQuestion(row) });
-  } catch (error) {
-    console.error('Failed to update question:', error);
-    return NextResponse.json({ error: 'Failed to update question' }, { status: 500 });
-  }
-}
-
-export async function DELETE(request: Request) {
-  try {
-    const sql = getSql();
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    if (!id) {
-      return NextResponse.json({ error: 'Question id is required' }, { status: 400 });
+    if (!process.env.DATABASE_URL) {
+      return NextResponse.json(
+        { error: 'DATABASE_URL is not configured' },
+        { status: 500 }
+      );
     }
-    await sql`DELETE FROM question_bank WHERE id = ${id}`;
-    return NextResponse.json({ success: true });
+
+    const sql = neon(process.env.DATABASE_URL);
+    const body = await request.json();
+    const { action, question } = body;
+
+    if (action === 'update' || action === 'add') {
+      if (action === 'update') {
+        await sql`
+          UPDATE question_bank SET
+            question_text = ${question.content},
+            option_a = ${question.options?.find((o: any) => o.label === 'A')?.text || null},
+            option_b = ${question.options?.find((o: any) => o.label === 'B')?.text || null},
+            option_c = ${question.options?.find((o: any) => o.label === 'C')?.text || null},
+            option_d = ${question.options?.find((o: any) => o.label === 'D')?.text || null},
+            correct_answer = ${question.correctAnswer},
+            explanation = ${question.explanation || null},
+            knowledge_path = ${question.knowledgePath || null},
+            linked_angle_id = ${question.linkedAngleId || null},
+            source = ${question.source || 'manual'}
+          WHERE id = ${question.id}
+        `;
+        return NextResponse.json({ success: true, action: 'update', id: question.id });
+      }
+
+      if (action === 'add') {
+        const newId = question.id || `q_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await sql`
+          INSERT INTO question_bank (
+            id, user_id, question_text, option_a, option_b, option_c, option_d,
+            correct_answer, explanation, knowledge_path, linked_angle_id, source,
+            created_at
+          ) VALUES (
+            ${newId},
+            'default_user',
+            ${question.content},
+            ${question.options?.find((o: any) => o.label === 'A')?.text || null},
+            ${question.options?.find((o: any) => o.label === 'B')?.text || null},
+            ${question.options?.find((o: any) => o.label === 'C')?.text || null},
+            ${question.options?.find((o: any) => o.label === 'D')?.text || null},
+            ${question.correctAnswer},
+            ${question.explanation || null},
+            ${question.knowledgePath || null},
+            ${question.linkedAngleId || null},
+            ${question.source || 'manual'},
+            NOW()
+          )
+        `;
+        return NextResponse.json({ success: true, action: 'add', id: newId });
+      }
+    }
+
+    if (action === 'delete') {
+      await sql`DELETE FROM question_bank WHERE id = ${question.id}`;
+      return NextResponse.json({ success: true, action: 'delete', id: question.id });
+    }
+
+    return NextResponse.json(
+      { error: 'Invalid action' },
+      { status: 400 }
+    );
   } catch (error) {
-    console.error('Failed to delete question:', error);
-    return NextResponse.json({ error: 'Failed to delete question' }, { status: 500 });
+    console.error('Failed to save question:', error);
+    return NextResponse.json(
+      { error: 'Failed to save question' },
+      { status: 500 }
+    );
   }
 }

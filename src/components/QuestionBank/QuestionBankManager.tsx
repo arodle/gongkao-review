@@ -183,7 +183,7 @@ export function QuestionBankManager() {
     setShowQuestionDialog(true);
   }, []);
 
-  const handleSaveQuestion = useCallback(() => {
+  const handleSaveQuestion = useCallback(async () => {
     if (!formData.content || !formData.correctAnswer) return;
 
     const questionData: QuestionBankItem = {
@@ -207,14 +207,43 @@ export function QuestionBankManager() {
       addQuestion(questionData);
     }
 
+    try {
+      const action = editingQuestion ? 'update' : 'add';
+      const response = await fetch('/api/questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, question: questionData }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save to database');
+      }
+    } catch (error) {
+      console.error('Failed to save question to database:', error);
+    }
+
     setShowQuestionDialog(false);
     setFormData(initialFormData);
     setEditingQuestion(null);
   }, [formData, editingQuestion, addQuestion, updateQuestion]);
 
-  const handleDeleteQuestion = useCallback((id: string) => {
+  const handleDeleteQuestion = useCallback(async (id: string) => {
     if (confirm('确定要删除这道题目吗？')) {
       deleteQuestion(id);
+      
+      try {
+        const response = await fetch('/api/questions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'delete', question: { id } }),
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to delete from database');
+        }
+      } catch (error) {
+        console.error('Failed to delete question from database:', error);
+      }
     }
   }, [deleteQuestion]);
 
@@ -227,18 +256,30 @@ export function QuestionBankManager() {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const data = JSON.parse(event.target?.result as string);
         if (Array.isArray(data)) {
-          data.forEach((item: QuestionBankItem) => {
+          for (let i = 0; i < data.length; i++) {
+            const item = data[i] as QuestionBankItem;
             if (item.content && item.options && item.correctAnswer) {
-              addQuestion({
+              const newQuestion = {
                 ...item,
                 id: item.id || `q_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              });
+              };
+              addQuestion(newQuestion);
+              
+              try {
+                await fetch('/api/questions', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ action: 'add', question: newQuestion }),
+                });
+              } catch (error) {
+                console.error('Failed to save imported question to database:', error);
+              }
             }
-          });
+          }
           alert(`成功导入 ${data.length} 道题目`);
         }
       } catch (error) {
