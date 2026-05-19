@@ -21,6 +21,8 @@ import {
   FileText,
   Edit3,
   Check,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -233,6 +235,15 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
   const graphData = useMemo((): GraphData => {
     if (!nodes.length) return { nodes: [], edges: [] };
 
+    const childrenMap = new Map<string, string[]>();
+    nodes.forEach(n => {
+      if (n.parent_id) {
+        const list = childrenMap.get(n.parent_id) || [];
+        list.push(n.id);
+        childrenMap.set(n.parent_id, list);
+      }
+    });
+
     const graphNodes: any[] = nodes.map(node => {
       const cachedStats = nodeStatsCache.get(node.id);
       const hasAnswered = cachedStats?.hasAnswered ?? false;
@@ -240,6 +251,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
       const colorConfig = focusMode
         ? getPSColorWithFocus(node.ps_score, focusMode, hasAnswered)
         : getPSColor(node.ps_score, hasAnswered);
+      const childIds = childrenMap.get(node.id) || [];
 
       return {
         id: node.id,
@@ -256,6 +268,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
           wrongCount,
           hasAnswered,
         },
+        children: childIds,
       };
     });
 
@@ -350,7 +363,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
             nodesep: 40,
             ranksep: 90,
           },
-          behaviors: ['drag-canvas', 'zoom-canvas'],
+          behaviors: ['drag-canvas', 'zoom-canvas', 'collapse-expand'],
           autoFit: 'view',
           padding: 60,
         });
@@ -429,6 +442,40 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
   const handleFitView = useCallback(() => {
     if (graphRef.current) {
       graphRef.current.fitView();
+    }
+  }, []);
+
+  const handleCollapseAll = useCallback(() => {
+    if (!graphRef.current) return;
+    try {
+      const rootNodes = nodes.filter(n => !n.parent_id);
+      const allExceptRoot = new Set(nodes.filter(n => n.parent_id).map(n => n.id));
+      const data = graphRef.current.getData();
+      const gNodes = (data as any).nodes || [];
+      gNodes.forEach((n: any) => {
+        if (allExceptRoot.has(n.id) && n.data?.collapsed !== true) {
+          graphRef.current?.collapseElement(n.id);
+        }
+      });
+      graphRef.current.fitView();
+    } catch (e) {
+      console.warn('Failed to collapse all:', e);
+    }
+  }, [nodes]);
+
+  const handleExpandAll = useCallback(() => {
+    if (!graphRef.current) return;
+    try {
+      const data = graphRef.current.getData();
+      const gNodes = (data as any).nodes || [];
+      gNodes.forEach((n: any) => {
+        if (n.data?.collapsed === true) {
+          graphRef.current?.expandElement(n.id);
+        }
+      });
+      graphRef.current.fitView();
+    } catch (e) {
+      console.warn('Failed to expand all:', e);
     }
   }, []);
 
@@ -613,6 +660,38 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
             </Button>
           </TooltipTrigger>
           <TooltipContent>适应视图</TooltipContent>
+        </Tooltip>
+
+        <div className="w-full h-px bg-border/50 my-1" />
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant="secondary"
+              onClick={handleExpandAll}
+              className={GLASS_STYLE}
+              aria-label="全部展开"
+            >
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>全部展开</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant="secondary"
+              onClick={handleCollapseAll}
+              className={GLASS_STYLE}
+              aria-label="全部折叠"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>折叠到根节点</TooltipContent>
         </Tooltip>
       </div>
 

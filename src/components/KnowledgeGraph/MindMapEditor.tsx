@@ -271,6 +271,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
     name: '',
     content: '',
     annotation: '',
+    parent_id: '',
   });
   const [addForm, setAddForm] = useState({
     name: '',
@@ -390,6 +391,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
       name: node.name,
       content: node.content || '',
       annotation: node.annotation || '',
+      parent_id: node.parent_id || '',
     });
     setShowEditDialog(true);
   }, []);
@@ -412,11 +414,13 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
 
   const handleSaveEdit = useCallback(() => {
     if (!editingNode) return;
+    const newParentId = editForm.parent_id || null;
     useAppStore.getState().updateNode({
       id: editingNode.id,
       name: editForm.name,
       content: editForm.content || undefined,
       annotation: editForm.annotation || undefined,
+      parent_id: newParentId,
     });
 
     const annotationChanged = editForm.annotation !== (editingNode.annotation || '');
@@ -675,6 +679,14 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
                           <FolderPlus className="h-4 w-4 mr-1" />
                           添加子节点
                         </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteNode(selectedNode.id)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          删除
+                        </Button>
                       </div>
                     </div>
                   </CardHeader>
@@ -896,6 +908,22 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
               />
             </div>
             <div className="space-y-2">
+              <label className="text-sm font-medium">父节点（移动节点到其他位置）</label>
+              <select
+                value={editForm.parent_id}
+                onChange={(e) => setEditForm(prev => ({ ...prev, parent_id: e.target.value }))}
+                className="w-full border rounded px-2 py-1.5 text-sm"
+              >
+                <option value="">根节点（无父节点）</option>
+                {nodes
+                  .filter(n => n.id !== editingNode?.id)
+                  .filter(n => n.node_type !== 'angle')
+                  .map(n => (
+                    <option key={n.id} value={n.id}>{getNodePath(n.id)}</option>
+                  ))}
+              </select>
+            </div>
+            <div className="space-y-2">
               <label className="text-sm font-medium">内容说明</label>
               <Textarea
                 value={editForm.content}
@@ -914,11 +942,27 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
-              取消
+          <DialogFooter className="flex justify-between">
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                if (confirm('确定删除该节点？子节点也将被删除。')) {
+                  useAppStore.getState().deleteNode(editingNode!.id);
+                  setShowEditDialog(false);
+                  setEditingNode(null);
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              删除
             </Button>
-            <Button onClick={handleSaveEdit}>保存</Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+                取消
+              </Button>
+              <Button onClick={handleSaveEdit}>保存</Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
