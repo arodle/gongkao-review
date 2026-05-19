@@ -281,6 +281,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [isDragging, setIsDragging] = useState(false);
   const [isQuestionsExpanded, setIsQuestionsExpanded] = useState(false);
+  const [expandedQuestionId, setExpandedQuestionId] = useState<string | null>(null);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -716,24 +717,109 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
                         {(isQuestionsExpanded ? nodeQuestions : nodeQuestions.slice(0, 5)).map((q) => (
                           <div
                             key={q.id}
-                            className="p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+                            className={cn(
+                              "rounded-lg border transition-colors",
+                              expandedQuestionId === q.id 
+                                ? "bg-card border-primary" 
+                                : "bg-muted/50 hover:bg-muted cursor-pointer"
+                            )}
+                            onClick={() => setExpandedQuestionId(expandedQuestionId === q.id ? null : q.id)}
                           >
-                            <p className="text-sm line-clamp-2">{q.content}</p>
-                            <div className="mt-2 flex items-center gap-2 flex-wrap">
-                              <Badge variant="outline" className="text-xs">
-                                {(q.knowledgePath || '').split('/').pop()}
-                              </Badge>
-                              {q.options && q.options.length > 0 && (
-                                <Badge variant="secondary" className="text-xs">
-                                  {q.options.length} 个选项
-                                </Badge>
+                            <div className="p-3">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className={cn(
+                                  "text-sm flex-1",
+                                  expandedQuestionId !== q.id && "line-clamp-2"
+                                )}>
+                                  {q.content}
+                                </p>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 shrink-0"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedQuestionId(expandedQuestionId === q.id ? null : q.id);
+                                  }}
+                                >
+                                  {expandedQuestionId === q.id ? (
+                                    <ChevronUp className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </div>
+                              
+                              {expandedQuestionId === q.id && (
+                                <div className="mt-4 space-y-3">
+                                  {q.options && q.options.length > 0 && (
+                                     <div className="space-y-2">
+                                       <h4 className="text-sm font-medium text-muted-foreground">选项</h4>
+                                       {q.options.map((opt, idx) => (
+                                         <div 
+                                           key={idx}
+                                           className={cn(
+                                             "p-2 rounded-md text-sm",
+                                             q.correctAnswer === opt.label
+                                               ? "bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800" 
+                                               : "bg-muted/50"
+                                           )}
+                                         >
+                                           <span className="font-medium mr-2">{opt.label}.</span>
+                                           {opt.text}
+                                         </div>
+                                       ))}
+                                     </div>
+                                   )}
+                                  
+                                  {q.explanation && (
+                                    <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                                      <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">解析</h4>
+                                      <p className="text-sm text-blue-700 dark:text-blue-300">{q.explanation}</p>
+                                    </div>
+                                  )}
+                                  
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {q.knowledgePath && (
+                                      <Badge variant="outline" className="text-xs">
+                                        {(q.knowledgePath || '').split('/').pop()}
+                                      </Badge>
+                                    )}
+                                    {q.source && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        {q.source}
+                                      </Badge>
+                                    )}
+                                    {q.type && (
+                                      <Badge 
+                                        variant={q.type === 'real' ? 'default' : 'outline'}
+                                        className="text-xs"
+                                      >
+                                        {q.type === 'real' ? '真题' : '模拟题'}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {expandedQuestionId !== q.id && (
+                                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                  <Badge variant="outline" className="text-xs">
+                                    {(q.knowledgePath || '').split('/').pop()}
+                                  </Badge>
+                                  {q.options && q.options.length > 0 && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      {q.options.length} 个选项
+                                    </Badge>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </div>
                         ))}
                         {!isQuestionsExpanded && nodeQuestions.length > 5 && (
                           <div className="text-center text-sm text-muted-foreground py-2">
-                            还有 {nodeQuestions.length - 5} 道题目未显示，点击"展开全部"查看
+                            还有 {nodeQuestions.length - 5} 道题目，点击"展开全部"查看更多
                           </div>
                         )}
                       </div>
