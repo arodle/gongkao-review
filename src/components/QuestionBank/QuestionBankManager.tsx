@@ -713,7 +713,7 @@ export function QuestionBankManager() {
               >
                 <option value="">请选择知识点</option>
                 {nodes
-                  .filter(node => node.node_type === 'angle')
+                  .filter(node => ['knowledge', 'subknowledge', 'angle'].includes(node.node_type))
                   .map(node => {
                     const getNodePath = (nodeId: string): string[] => {
                       const parts: string[] = [];
