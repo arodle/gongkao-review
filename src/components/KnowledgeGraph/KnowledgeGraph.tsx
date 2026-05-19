@@ -1,13 +1,12 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { motion } from 'framer-motion';
 import { useAppStore } from '@/lib/stores/appStore';
 import { getPSColor, getPSColorWithFocus } from '@/lib/utils/colors';
 import type { KnowledgeNodeRecord } from '@/types';
 import {
   ZoomIn, ZoomOut, Maximize2,
-  Target, Eye, EyeOff, X, List, BookOpen, Edit3, Check,
+  Target, Eye, EyeOff, X, Edit3, Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -60,45 +59,32 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
   const getNodeWrongCount = useCallback((nodeId: string) => nodeStatsCache.get(nodeId)?.wrongCount ?? 0, [nodeStatsCache]);
   const weakNodes = useMemo(() => nodes.filter(n => n.ps_score < 80), [nodes]);
 
-  // ── Build mindmap tree data with depth & index ──
   const graphData = useMemo(() => {
-    if (!nodes.length) return { id: 'dummy', children: [] };
+    if (!nodes.length) return { nodes: [], edges: [] };
 
     const childrenMap = new Map<string, KnowledgeNodeRecord[]>();
     nodes.forEach(n => {
       if (n.parent_id) { const list = childrenMap.get(n.parent_id) || []; list.push(n); childrenMap.set(n.parent_id, list); }
     });
 
-    console.log('[KnowledgeGraph] nodes sample:', nodes.slice(0, 5).map(n => ({
-      id: n.id, name: n.name, parent_id: n.parent_id, type: n.node_type,
-    })));
-    console.log('[KnowledgeGraph] root nodes:', nodes.filter(n => !n.parent_id).map(n => n.name));
+    console.log('[KnowledgeGraph] nodes:', nodes.length, 'roots:', nodes.filter(n => !n.parent_id).map(n => n.name));
 
     function buildTreeNode(n: KnowledgeNodeRecord, depth: number, index: number): any {
       const cached = nodeStatsCache.get(n.id);
       const hasAnswered = cached?.hasAnswered ?? false;
       const color = focusMode ? getPSColorWithFocus(n.ps_score, focusMode, hasAnswered) : getPSColor(n.ps_score, hasAnswered);
-      const kidList = childrenMap.get(n.id) || [];
-      const children = kidList.map((k, i) => buildTreeNode(k, depth + 1, i));
-      const side = index % 2 === 0 ? 'right' : 'left';
-
+      const kids = (childrenMap.get(n.id) || []).map((k, i) => buildTreeNode(k, depth + 1, i));
+      const side = depth === 1 ? (index % 2 === 0 ? 'left' : 'right') : 'right';
       return {
         id: n.id,
         depth,
-        index,
-        side,
         data: {
           label: n.name,
-          psScore: n.ps_score,
           nodeType: n.node_type,
           bgColor: color.background,
           borderColor: color.border,
           textColor: color.text,
           opacity: color.opacity,
-          stats: { correct: cached?.correct ?? 0, wrong: cached?.wrong ?? 0 },
-          hasAnswered,
-          depth,
-          index,
           side,
         },
         style: {
@@ -111,31 +97,23 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
           labelFill: color.text,
           labelFontSize: 11,
           labelFontWeight: 600,
-          labelMaxWidth: 100,
-          labelWordWrap: true,
           opacity: color.opacity,
         },
-        children: children.length > 0 ? children : undefined,
+        children: kids.length > 0 ? kids : undefined,
       };
     }
 
     const roots = nodes.filter(n => !n.parent_id);
-    if (roots.length === 1) {
-      return buildTreeNode(roots[0], 0, 0);
-    }
-    // Multiple roots → wrap in virtual root
+    if (roots.length === 1) return buildTreeNode(roots[0], 0, 0);
+
     return {
       id: 'virtual_root',
-      depth: 0,
-      index: 0,
-      side: 'right',
-      data: { label: '', nodeType: 'root', bgColor: 'transparent', borderColor: 'transparent', textColor: 'transparent', opacity: 0, psScore: 0, stats: { correct: 0, wrong: 0 }, hasAnswered: false, depth: 0, index: 0, side: 'right' },
-      style: { size: 1, fill: 'transparent', stroke: 'transparent', lineWidth: 0, radius: 0, labelText: '', opacity: 0 },
+      data: { side: 'right', opacity: 0, bgColor: 'transparent', borderColor: 'transparent', textColor: 'transparent', nodeType: 'root' },
+      style: { size: 1, fill: 'transparent', stroke: 'transparent', lineWidth: 0, radius: 0, opacity: 0 },
       children: roots.map((r, i) => buildTreeNode(r, 1, i)),
     };
   }, [nodes, focusMode, nodeStatsCache]);
 
-  // ── Init TreeGraph ──
   useEffect(() => {
     if (!containerRef.current || !isInitialized || nodes.length === 0) return;
     let mounted = true;
@@ -144,7 +122,6 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
       try { if (graphRef.current) { graphRef.current.destroy(); graphRef.current = null; } } catch {}
 
       const { Graph } = await import('@antv/g6');
-
       const nodeMap = new Map(nodes.map(n => [n.id, n]));
 
       const graph = new Graph({
@@ -175,71 +152,48 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
         },
         edge: {
           type: 'cubic-horizontal',
-          style: {
-            stroke: '#94a3b8',
-            lineWidth: 1.5,
-          },
+          style: { stroke: '#94a3b8', lineWidth: 1.5 },
         },
         layout: {
           type: 'mindmap',
           direction: 'H',
           getSide: (d: any) => d.data?.side || 'right',
-          getHeight: () => 50,
+          getHeight: () => 44,
           getWidth: (d: any) => {
-            const t = d.data?.nodeType;
-            if (t === 'subject') return 140;
-            if (t === 'knowledge') return 120;
-            if (t === 'subknowledge') return 100;
-            return 90;
+            const t = d.data?.nodeType; if (t === 'subject') return 140; if (t === 'knowledge') return 120; if (t === 'subknowledge') return 100; return 90;
           },
-          getVGap: () => 12,
-          getHGap: () => 30,
+          getVGap: () => 10,
+          getHGap: () => 35,
         },
-        behaviors: [
-          'drag-canvas',
-          'zoom-canvas',
-          'collapse-expand',
-        ],
-        padding: 80,
+        behaviors: ['drag-canvas', 'zoom-canvas', 'collapse-expand'],
+        padding: 60,
       });
 
       graph.on('node:click', (evt: any) => {
         const nodeId = evt?.target?.id;
-        if (!nodeId) return;
-        if (nodeId === 'virtual_root') return;
+        if (!nodeId || nodeId === 'virtual_root') return;
         const node = nodeMap.get(nodeId);
-        if (!node) return;
-        setSelectedNode(node);
-        onNodeSelect?.(node);
+        if (node) { setSelectedNode(node); onNodeSelect?.(node); }
       });
 
-      graph.on('afterrender', () => {
-        try { graph.fitView(); } catch {}
-      });
+      graph.on('afterrender', () => { if (mounted) graph.fitView(); });
 
       graphRef.current = graph;
-      if (mounted) setIsReady(true);
+      setIsReady(true);
     })();
 
-    return () => { mounted = false; try { graphRef.current?.destroy(); graphRef.current = null; } catch {} };
+    return () => { mounted = false; try { graphRef.current?.destroy(); } catch {} };
   }, [isInitialized, nodes.length]);
 
-  // ── Re-render on data change ──
   useEffect(() => {
     if (!graphRef.current || !isReady) return;
-    try {
-      graphRef.current.setData(graphData);
-      graphRef.current.render();
-      graphRef.current.fitView();
-    } catch {}
+    try { graphRef.current.setData(graphData); graphRef.current.render(); graphRef.current.fitView(); } catch {}
   }, [graphData, isReady]);
 
-  // ── Zoom / Fit ──
-  const handleZoomIn = useCallback(() => { try { graphRef.current?.zoomTo((graphRef.current.getZoom() || 1) * 1.2); } catch {} }, []);
+  const handleZoomIn  = useCallback(() => { try { graphRef.current?.zoomTo((graphRef.current.getZoom() || 1) * 1.2); } catch {} }, []);
   const handleZoomOut = useCallback(() => { try { graphRef.current?.zoomTo((graphRef.current.getZoom() || 1) / 1.2); } catch {} }, []);
   const handleFitView = useCallback(() => { try { graphRef.current?.fitView(); } catch {} }, []);
 
-  // ── Annotation sync ──
   const handleStartEditAnnotation = useCallback((node: KnowledgeNodeRecord) => {
     setEditingAnnotation(node.id); setAnnotationDraft(node.annotation || '');
   }, []);
@@ -283,20 +237,18 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
       <div className="relative h-full w-full bg-slate-50 dark:bg-slate-950">
         <div ref={containerRef} className="h-full w-full" />
 
-        {/* Toolbar — top left */}
         <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
           <Tooltip><TooltipTrigger asChild><Button size="icon" variant="secondary" onClick={handleZoomIn} className={GLASS_STYLE}><ZoomIn className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>放大</TooltipContent></Tooltip>
           <Tooltip><TooltipTrigger asChild><Button size="icon" variant="secondary" onClick={handleZoomOut} className={GLASS_STYLE}><ZoomOut className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>缩小</TooltipContent></Tooltip>
           <Tooltip><TooltipTrigger asChild><Button size="icon" variant="secondary" onClick={handleFitView} className={GLASS_STYLE}><Maximize2 className="h-4 w-4" /></Button></TooltipTrigger><TooltipContent>适应视图</TooltipContent></Tooltip>
         </div>
 
-        {/* Focus + Weak nodes — top right */}
         <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
           <Tooltip><TooltipTrigger asChild>
             <Button size="icon" variant={focusMode ? 'default' : 'secondary'} onClick={() => setFocusMode(p => !p)} className={cn(GLASS_STYLE, focusMode && 'bg-amber-500 hover:bg-amber-600')}>
               {focusMode ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </Button>
-          </TooltipTrigger><TooltipContent>{focusMode ? '退出焦点模式' : '薄弱点高亮'}</TooltipContent></Tooltip>
+          </TooltipTrigger><TooltipContent>{focusMode ? '退出焦点' : '薄弱点高亮'}</TooltipContent></Tooltip>
           <Popover>
             <PopoverTrigger asChild>
               <Button size="icon" variant="secondary" className={cn(GLASS_STYLE, 'relative')}>
@@ -305,7 +257,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-64 p-3" align="end">
-              <div className="space-y-2"><h4 className="font-semibold text-sm">薄弱知识点</h4><p className="text-xs text-muted-foreground">共 {weakNodes.length} 个知识点掌握度不足</p>
+              <div className="space-y-2"><h4 className="font-semibold text-sm">薄弱知识点</h4>
                 <ScrollArea className="h-32"><div className="space-y-1">
                   {weakNodes.slice(0, 10).map(node => (
                     <button key={node.id} onClick={() => { setSelectedNode(node); onNodeSelect?.(node); }} className="w-full text-left px-2 py-1 text-xs rounded hover:bg-accent">
@@ -317,7 +269,6 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
           </Popover>
         </div>
 
-        {/* Legend */}
         <div className={cn('absolute bottom-4 left-4 flex items-center gap-3 rounded-lg px-4 py-2 z-10', GLASS_STYLE)}>
           <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-[#e5e7eb]" /><span className="text-[11px] text-muted-foreground">未作答</span></div>
           <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-[#DC2626]" /><span className="text-[11px] text-muted-foreground">薄弱</span></div>
@@ -326,7 +277,6 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
           <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-[#0891B2]" /><span className="text-[11px] text-muted-foreground">熟练</span></div>
         </div>
 
-        {/* Detail Sheet */}
         {selectedNode && (
           <Sheet open={!!selectedNode} onOpenChange={(open) => !open && setSelectedNode(null)}>
             <SheetContent className="w-[400px] sm:w-[540px]">
@@ -356,7 +306,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
                     <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"><div className="text-2xl font-bold text-red-600 dark:text-red-400">{selectedNodeStats.wrong}</div><div className="text-xs text-red-600/70">错误次数</div></div>
                   </div>
                 )}
-                <div className="space-y-2 pt-2 border-t"><h4 className="text-sm font-medium">操作</h4><div className="flex gap-2">{onTargetedPractice && <Button className="flex-1" onClick={() => { onTargetedPractice(selectedNode.id); setSelectedNode(null); }}><Target className="h-4 w-4 mr-2" />靶向练习</Button>}</div></div>
+                <div className="pt-2 border-t"><Button className="w-full" onClick={() => { onTargetedPractice?.(selectedNode.id); setSelectedNode(null); }}><Target className="h-4 w-4 mr-2" />靶向练习</Button></div>
               </div>
             </SheetContent>
           </Sheet>
