@@ -7,7 +7,7 @@ import { getPSColor, getPSColorWithFocus } from '@/lib/utils/colors';
 import type { KnowledgeNodeRecord } from '@/types';
 import {
   ZoomIn, ZoomOut, Maximize2,
-  Target, Eye, EyeOff, Info, X, List, BookOpen, Edit3, Check, ChevronDown,
+  Target, Eye, EyeOff, X, List, BookOpen, Edit3, Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,37 +24,6 @@ const GLASS_STYLE = 'shadow-lg backdrop-blur-sm bg-white/80 dark:bg-slate-800/80
 const SIZE_MAP: Record<string, number> = {
   subject: 48, knowledge: 40, subknowledge: 34, angle: 30,
 };
-
-function WrongAnswerList({ nodeId, onClose }: { nodeId: string; onClose: () => void }) {
-  const { getWrongAnswersByNodeId, questionBank, getNodeById } = useAppStore();
-  const wrongAnswers = getWrongAnswersByNodeId(nodeId);
-  const node = getNodeById(nodeId);
-  return (
-    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
-      className="absolute right-4 top-4 bottom-4 w-80 bg-white dark:bg-slate-800 rounded-lg shadow-xl border overflow-hidden flex flex-col z-50">
-      <div className="p-4 border-b flex items-center justify-between bg-slate-50 dark:bg-slate-900">
-        <div className="flex items-center gap-2"><List className="h-5 w-5 text-slate-500" /><span className="font-semibold">{node?.name} - 错题列表</span></div>
-        <Button variant="ghost" size="sm" onClick={onClose}><X className="h-4 w-4" /></Button>
-      </div>
-      <ScrollArea className="flex-1">
-        <div className="p-4 space-y-3">
-          {wrongAnswers.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground"><BookOpen className="h-12 w-12 mx-auto mb-3 opacity-20" /><p>暂无错题记录</p></div>
-          ) : wrongAnswers.map(record => {
-            const question = questionBank.find(q => q.id === record.question_id);
-            return (
-              <div key={record.question_id} className="p-3 rounded-lg bg-muted/50 space-y-2">
-                <p className="text-sm">{question?.content || '已删除题目'}</p>
-                <Badge variant={record.is_correct ? 'default' : 'destructive'} className="text-[10px]">{record.is_correct ? '正确' : '错误'}</Badge>
-                <p className="text-[10px] text-muted-foreground">{new Date(record.updated_at).toLocaleString('zh-CN')}</p>
-              </div>
-            );
-          })}
-        </div>
-      </ScrollArea>
-    </motion.div>
-  );
-}
 
 export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
   onNodeSelect?: (node: KnowledgeNodeRecord) => void;
@@ -89,25 +58,35 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
 
   const hasNodeAnswered = useCallback((nodeId: string) => nodeStatsCache.get(nodeId)?.hasAnswered ?? false, [nodeStatsCache]);
   const getNodeWrongCount = useCallback((nodeId: string) => nodeStatsCache.get(nodeId)?.wrongCount ?? 0, [nodeStatsCache]);
-
   const weakNodes = useMemo(() => nodes.filter(n => n.ps_score < 80), [nodes]);
 
-  // ── Build G6 tree data ──
+  // ── Build mindmap tree data with depth & index ──
   const graphData = useMemo(() => {
-    if (!nodes.length) return { nodes: [], edges: [] };
+    if (!nodes.length) return { id: 'dummy', children: [] };
 
     const childrenMap = new Map<string, KnowledgeNodeRecord[]>();
     nodes.forEach(n => {
       if (n.parent_id) { const list = childrenMap.get(n.parent_id) || []; list.push(n); childrenMap.set(n.parent_id, list); }
     });
 
-    function buildTreeNode(n: KnowledgeNodeRecord): any {
+    console.log('[KnowledgeGraph] nodes sample:', nodes.slice(0, 5).map(n => ({
+      id: n.id, name: n.name, parent_id: n.parent_id, type: n.node_type,
+    })));
+    console.log('[KnowledgeGraph] root nodes:', nodes.filter(n => !n.parent_id).map(n => n.name));
+
+    function buildTreeNode(n: KnowledgeNodeRecord, depth: number, index: number): any {
       const cached = nodeStatsCache.get(n.id);
       const hasAnswered = cached?.hasAnswered ?? false;
       const color = focusMode ? getPSColorWithFocus(n.ps_score, focusMode, hasAnswered) : getPSColor(n.ps_score, hasAnswered);
-      const kids = (childrenMap.get(n.id) || []).map(buildTreeNode);
+      const kidList = childrenMap.get(n.id) || [];
+      const children = kidList.map((k, i) => buildTreeNode(k, depth + 1, i));
+      const side = index % 2 === 0 ? 'right' : 'left';
+
       return {
         id: n.id,
+        depth,
+        index,
+        side,
         data: {
           label: n.name,
           psScore: n.ps_score,
@@ -118,6 +97,9 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
           opacity: color.opacity,
           stats: { correct: cached?.correct ?? 0, wrong: cached?.wrong ?? 0 },
           hasAnswered,
+          depth,
+          index,
+          side,
         },
         style: {
           size: SIZE_MAP[n.node_type] ?? 30,
@@ -133,15 +115,27 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
           labelWordWrap: true,
           opacity: color.opacity,
         },
-        children: kids.length > 0 ? kids : undefined,
+        children: children.length > 0 ? children : undefined,
       };
     }
 
-    const rootNodes = nodes.filter(n => !n.parent_id).map(buildTreeNode);
-    return { nodes: rootNodes, edges: [] };
+    const roots = nodes.filter(n => !n.parent_id);
+    if (roots.length === 1) {
+      return buildTreeNode(roots[0], 0, 0);
+    }
+    // Multiple roots → wrap in virtual root
+    return {
+      id: 'virtual_root',
+      depth: 0,
+      index: 0,
+      side: 'right',
+      data: { label: '', nodeType: 'root', bgColor: 'transparent', borderColor: 'transparent', textColor: 'transparent', opacity: 0, psScore: 0, stats: { correct: 0, wrong: 0 }, hasAnswered: false, depth: 0, index: 0, side: 'right' },
+      style: { size: 1, fill: 'transparent', stroke: 'transparent', lineWidth: 0, radius: 0, labelText: '', opacity: 0 },
+      children: roots.map((r, i) => buildTreeNode(r, 1, i)),
+    };
   }, [nodes, focusMode, nodeStatsCache]);
 
-  // ── Init G6 ──
+  // ── Init TreeGraph ──
   useEffect(() => {
     if (!containerRef.current || !isInitialized || nodes.length === 0) return;
     let mounted = true;
@@ -151,7 +145,6 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
 
       const { Graph } = await import('@antv/g6');
 
-      // Build flat node ID lookup for click handler
       const nodeMap = new Map(nodes.map(n => [n.id, n]));
 
       const graph = new Graph({
@@ -188,27 +181,40 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
           },
         },
         layout: {
-          type: 'dagre',
-          rankdir: 'LR',
-          nodesep: 30,
-          ranksep: 100,
+          type: 'mindmap',
+          direction: 'H',
+          getSide: (d: any) => d.data?.side || 'right',
+          getHeight: () => 50,
+          getWidth: (d: any) => {
+            const t = d.data?.nodeType;
+            if (t === 'subject') return 140;
+            if (t === 'knowledge') return 120;
+            if (t === 'subknowledge') return 100;
+            return 90;
+          },
+          getVGap: () => 12,
+          getHGap: () => 30,
         },
         behaviors: [
           'drag-canvas',
           'zoom-canvas',
           'collapse-expand',
         ],
-        autoFit: 'view',
         padding: 80,
       });
 
       graph.on('node:click', (evt: any) => {
         const nodeId = evt?.target?.id;
         if (!nodeId) return;
+        if (nodeId === 'virtual_root') return;
         const node = nodeMap.get(nodeId);
         if (!node) return;
         setSelectedNode(node);
         onNodeSelect?.(node);
+      });
+
+      graph.on('afterrender', () => {
+        try { graph.fitView(); } catch {}
       });
 
       graphRef.current = graph;
@@ -221,7 +227,11 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
   // ── Re-render on data change ──
   useEffect(() => {
     if (!graphRef.current || !isReady) return;
-    try { graphRef.current.setData(graphData); graphRef.current.render(); } catch {}
+    try {
+      graphRef.current.setData(graphData);
+      graphRef.current.render();
+      graphRef.current.fitView();
+    } catch {}
   }, [graphData, isReady]);
 
   // ── Zoom / Fit ──
@@ -257,7 +267,6 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
 
   const selectedNodeStats = useMemo(() => selectedNode ? getNodeStats(selectedNode.id) : null, [selectedNode, getNodeStats]);
 
-  // ── Loading ──
   if (!isInitialized || nodes.length === 0) {
     return (
       <div className="flex items-center justify-center h-full bg-slate-50 dark:bg-slate-950">
@@ -272,7 +281,6 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
   return (
     <TooltipProvider>
       <div className="relative h-full w-full bg-slate-50 dark:bg-slate-950">
-        {/* G6 Canvas */}
         <div ref={containerRef} className="h-full w-full" />
 
         {/* Toolbar — top left */}
@@ -284,14 +292,11 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
 
         {/* Focus + Weak nodes — top right */}
         <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button size="icon" variant={focusMode ? 'default' : 'secondary'} onClick={() => setFocusMode(p => !p)} className={cn(GLASS_STYLE, focusMode && 'bg-amber-500 hover:bg-amber-600')}>
-                {focusMode ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{focusMode ? '退出焦点模式' : '薄弱点高亮'}</TooltipContent>
-          </Tooltip>
+          <Tooltip><TooltipTrigger asChild>
+            <Button size="icon" variant={focusMode ? 'default' : 'secondary'} onClick={() => setFocusMode(p => !p)} className={cn(GLASS_STYLE, focusMode && 'bg-amber-500 hover:bg-amber-600')}>
+              {focusMode ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </Button>
+          </TooltipTrigger><TooltipContent>{focusMode ? '退出焦点模式' : '薄弱点高亮'}</TooltipContent></Tooltip>
           <Popover>
             <PopoverTrigger asChild>
               <Button size="icon" variant="secondary" className={cn(GLASS_STYLE, 'relative')}>
@@ -300,23 +305,19 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-64 p-3" align="end">
-              <div className="space-y-2">
-                <h4 className="font-semibold text-sm">薄弱知识点</h4>
-                <p className="text-xs text-muted-foreground">共 {weakNodes.length} 个知识点掌握度不足</p>
+              <div className="space-y-2"><h4 className="font-semibold text-sm">薄弱知识点</h4><p className="text-xs text-muted-foreground">共 {weakNodes.length} 个知识点掌握度不足</p>
                 <ScrollArea className="h-32"><div className="space-y-1">
                   {weakNodes.slice(0, 10).map(node => (
                     <button key={node.id} onClick={() => { setSelectedNode(node); onNodeSelect?.(node); }} className="w-full text-left px-2 py-1 text-xs rounded hover:bg-accent">
-                      <span className="font-medium">{node.name}</span>
-                      <Badge variant="destructive" className="ml-2 text-[10px]">PS: {node.ps_score}</Badge>
+                      <span className="font-medium">{node.name}</span><Badge variant="destructive" className="ml-2 text-[10px]">PS: {node.ps_score}</Badge>
                     </button>
                   ))}
-                </div></ScrollArea>
-              </div>
+                </div></ScrollArea></div>
             </PopoverContent>
           </Popover>
         </div>
 
-        {/* Legend — bottom left */}
+        {/* Legend */}
         <div className={cn('absolute bottom-4 left-4 flex items-center gap-3 rounded-lg px-4 py-2 z-10', GLASS_STYLE)}>
           <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-[#e5e7eb]" /><span className="text-[11px] text-muted-foreground">未作答</span></div>
           <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-[#DC2626]" /><span className="text-[11px] text-muted-foreground">薄弱</span></div>
@@ -339,27 +340,15 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
               <div className="mt-6 space-y-6">
                 <div className="space-y-2">
                   <h4 className="text-sm font-medium">掌握进度</h4>
-                  <Progress value={(selectedNode.ps_score / 200) * 100} className="h-2"
-                    style={{ '--progress-foreground': getPSColor(selectedNode.ps_score, hasNodeAnswered(selectedNode.id)).background } as React.CSSProperties} />
-                  <p className="text-xs text-muted-foreground">
-                    {!hasNodeAnswered(selectedNode.id) ? '未作答，点击开始练习' : selectedNode.ps_score < 80 ? '需要加强练习' : selectedNode.ps_score < 150 ? '持续练习中' : '已熟练掌握'}
-                  </p>
+                  <Progress value={(selectedNode.ps_score / 200) * 100} className="h-2" style={{ '--progress-foreground': getPSColor(selectedNode.ps_score, hasNodeAnswered(selectedNode.id)).background } as React.CSSProperties} />
+                  <p className="text-xs text-muted-foreground">{!hasNodeAnswered(selectedNode.id) ? '未作答' : selectedNode.ps_score < 80 ? '需要加强' : selectedNode.ps_score < 150 ? '持续练习中' : '已熟练'}</p>
                 </div>
                 {selectedNode.content && <div className="space-y-2"><h4 className="text-sm font-medium">知识点说明</h4><p className="text-sm text-muted-foreground leading-relaxed">{selectedNode.content}</p></div>}
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-medium">学习笔记</h4>
-                    {editingAnnotation !== selectedNode.id && <Button variant="ghost" size="sm" onClick={() => handleStartEditAnnotation(selectedNode)}><Edit3 className="h-3 w-3 mr-1" />{selectedNode.annotation ? '编辑' : '添加笔记'}</Button>}
-                  </div>
+                  <div className="flex items-center justify-between"><h4 className="text-sm font-medium">学习笔记</h4>{editingAnnotation !== selectedNode.id && <Button variant="ghost" size="sm" onClick={() => handleStartEditAnnotation(selectedNode)}><Edit3 className="h-3 w-3 mr-1" />{selectedNode.annotation ? '编辑' : '添加笔记'}</Button>}</div>
                   {editingAnnotation === selectedNode.id ? (
-                    <div className="space-y-2">
-                      <Textarea value={annotationDraft} onChange={e => setAnnotationDraft(e.target.value)} placeholder="输入学习笔记..." rows={4} autoFocus />
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={handleSaveAnnotation}><Check className="h-3 w-3 mr-1" />保存</Button>
-                        <Button size="sm" variant="outline" onClick={() => { setEditingAnnotation(null); setAnnotationDraft(''); }}><X className="h-3 w-3 mr-1" />取消</Button>
-                      </div>
-                    </div>
-                  ) : selectedNode.annotation ? <p className="text-sm text-amber-600 dark:text-amber-400 italic">{selectedNode.annotation}</p> : <p className="text-sm text-muted-foreground italic">暂无笔记，点击"添加笔记"开始记录</p>}
+                    <div className="space-y-2"><Textarea value={annotationDraft} onChange={e => setAnnotationDraft(e.target.value)} placeholder="输入学习笔记..." rows={4} autoFocus /><div className="flex gap-2"><Button size="sm" onClick={handleSaveAnnotation}><Check className="h-3 w-3 mr-1" />保存</Button><Button size="sm" variant="outline" onClick={() => { setEditingAnnotation(null); setAnnotationDraft(''); }}><X className="h-3 w-3 mr-1" />取消</Button></div></div>
+                  ) : selectedNode.annotation ? <p className="text-sm text-amber-600 dark:text-amber-400 italic">{selectedNode.annotation}</p> : <p className="text-sm text-muted-foreground italic">暂无笔记</p>}
                 </div>
                 {selectedNodeStats && (
                   <div className="grid grid-cols-2 gap-4">
@@ -367,12 +356,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
                     <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"><div className="text-2xl font-bold text-red-600 dark:text-red-400">{selectedNodeStats.wrong}</div><div className="text-xs text-red-600/70">错误次数</div></div>
                   </div>
                 )}
-                <div className="space-y-2 pt-2 border-t">
-                  <h4 className="text-sm font-medium">操作</h4>
-                  <div className="flex gap-2">
-                    {onTargetedPractice && <Button className="flex-1" onClick={() => { onTargetedPractice(selectedNode.id); setSelectedNode(null); }}><Target className="h-4 w-4 mr-2" />靶向练习</Button>}
-                  </div>
-                </div>
+                <div className="space-y-2 pt-2 border-t"><h4 className="text-sm font-medium">操作</h4><div className="flex gap-2">{onTargetedPractice && <Button className="flex-1" onClick={() => { onTargetedPractice(selectedNode.id); setSelectedNode(null); }}><Target className="h-4 w-4 mr-2" />靶向练习</Button>}</div></div>
               </div>
             </SheetContent>
           </Sheet>
