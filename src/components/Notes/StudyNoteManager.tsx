@@ -162,7 +162,10 @@ export function StudyNoteManager() {
     });
   }, []);
 
-  const angleNodes = useMemo(() => nodes.filter(n => n.node_type === 'angle'), [nodes]);
+  const selectableNodes = useMemo(() =>
+    nodes.filter(n => n.node_type === 'subknowledge' || n.node_type === 'angle'),
+    [nodes]
+  );
 
   const getNodePath = useCallback((nodeId: string): string => {
     const parts: string[] = [];
@@ -223,7 +226,7 @@ export function StudyNoteManager() {
             className="border rounded px-2 py-1.5 text-sm bg-background max-w-[200px]"
           >
             <option value="">全部知识点</option>
-            {angleNodes.map(n => (
+            {selectableNodes.map(n => (
               <option key={n.id} value={n.id}>{getNodePath(n.id)}</option>
             ))}
           </select>
@@ -339,13 +342,13 @@ export function StudyNoteManager() {
                   setFormData(p => ({
                     ...p,
                     linked_node_id: nid,
-                    linked_node_name: selNode?.name || '',
+                    linked_node_name: selNode ? getNodePath(selNode.id) : '',
                   }));
                 }}
                 className="w-full border rounded px-2 py-1.5 text-sm"
               >
                 <option value="">不关联</option>
-                {nodes.filter(n => n.node_type === 'angle' || n.node_type === 'subknowledge').map(n => (
+                {selectableNodes.map(n => (
                   <option key={n.id} value={n.id}>{getNodePath(n.id)}</option>
                 ))}
               </select>

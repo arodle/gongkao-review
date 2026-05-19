@@ -418,9 +418,34 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
       content: editForm.content || undefined,
       annotation: editForm.annotation || undefined,
     });
+
+    const annotationChanged = editForm.annotation !== (editingNode.annotation || '');
+    if (annotationChanged && editForm.annotation) {
+      const parts: string[] = [];
+      let current: KnowledgeNodeRecord | undefined = nodes.find(n => n.id === editingNode.id);
+      while (current) {
+        const c = current;
+        parts.unshift(c.name);
+        current = c.parent_id ? nodes.find(n => n.id === c.parent_id) : undefined;
+      }
+      const fullPath = parts.join(' > ');
+      useAppStore.getState().addStudyNote({
+        id: `note_node_${editingNode.id}`,
+        user_id: 'default_user',
+        title: `${editingNode.name} - 学习笔记`,
+        content: editForm.annotation,
+        linked_node_id: editingNode.id,
+        linked_node_name: fullPath,
+        tags: [editingNode.node_type],
+        color_tag: 'default',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    }
+
     setShowEditDialog(false);
     setEditingNode(null);
-  }, [editingNode, editForm]);
+  }, [editingNode, editForm, nodes]);
 
   const handleSaveAdd = useCallback(async () => {
     if (!addForm.name.trim()) return;
