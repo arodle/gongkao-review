@@ -196,10 +196,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
         behaviors: [
           'drag-canvas',
           'zoom-canvas',
-          {
-            type: 'collapse-expand',
-            trigger: 'click',
-          },
+          'collapse-expand',
         ],
         autoFit: 'view',
         padding: 80,
