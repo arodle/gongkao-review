@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { neon } from '@neondatabase/serverless';
-import type { QuestionBankItem } from '@/types';
+import type { QuestionBankItem, QuestionOption } from '@/types';
 
 export async function GET() {
   try {
@@ -18,24 +18,33 @@ export async function GET() {
       ORDER BY created_at DESC
     `;
 
-    const questions: QuestionBankItem[] = result.map((row: any) => ({
-      id: row.id,
-      content: row.question_text,
-      options: [
+    const questions: QuestionBankItem[] = result.map((row: any) => {
+      const options: QuestionOption[] = [
         { label: 'A', text: row.option_a },
         { label: 'B', text: row.option_b },
-        row.option_c ? { label: 'C', text: row.option_c } : null,
-        row.option_d ? { label: 'D', text: row.option_d } : null,
-      ].filter(Boolean),
-      correctAnswer: row.correct_answer,
-      explanation: row.explanation,
-      linkedAngleId: row.linked_angle_id,
-      linkedAngleName: '',
-      knowledgePath: row.knowledge_path,
-      source: row.source,
-      createdAt: row.created_at,
-      images: [],
-    }));
+      ];
+      
+      if (row.option_c) {
+        options.push({ label: 'C', text: row.option_c });
+      }
+      if (row.option_d) {
+        options.push({ label: 'D', text: row.option_d });
+      }
+
+      return {
+        id: row.id,
+        content: row.question_text,
+        options,
+        correctAnswer: row.correct_answer,
+        explanation: row.explanation,
+        linkedAngleId: row.linked_angle_id || '',
+        linkedAngleName: '',
+        knowledgePath: row.knowledge_path || '',
+        source: row.source || 'manual',
+        createdAt: row.created_at,
+        images: [],
+      };
+    });
 
     return NextResponse.json({ questions });
   } catch (error) {
