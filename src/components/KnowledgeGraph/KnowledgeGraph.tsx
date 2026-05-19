@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { Graph, type GraphData, type NodeData, type EdgeData } from '@antv/g6';
+import { Graph, type GraphData, type NodeData } from '@antv/g6';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/lib/stores/appStore';
 import { getPSColor, getPSColorWithFocus } from '@/lib/utils/colors';
@@ -22,7 +22,6 @@ import {
   Edit3,
   Check,
   ChevronDown,
-  ChevronRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -235,30 +234,26 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
   const graphData = useMemo((): GraphData => {
     if (!nodes.length) return { nodes: [], edges: [] };
 
-    const childrenMap = new Map<string, string[]>();
+    const nodeMap = new Map(nodes.map(n => [n.id, n]));
+    const childrenMap = new Map<string, any[]>();
     nodes.forEach(n => {
-      if (n.parent_id) {
-        const list = childrenMap.get(n.parent_id) || [];
-        list.push(n.id);
-        childrenMap.set(n.parent_id, list);
-      }
+      if (n.parent_id) { const list = childrenMap.get(n.parent_id) || []; list.push(n); childrenMap.set(n.parent_id, list); }
     });
 
-    const graphNodes: any[] = nodes.map(node => {
-      const cachedStats = nodeStatsCache.get(node.id);
+    function buildTreeNode(n: any): any {
+      const cachedStats = nodeStatsCache.get(n.id);
       const hasAnswered = cachedStats?.hasAnswered ?? false;
       const wrongCount = cachedStats?.wrongCount ?? 0;
       const colorConfig = focusMode
-        ? getPSColorWithFocus(node.ps_score, focusMode, hasAnswered)
-        : getPSColor(node.ps_score, hasAnswered);
-      const childIds = childrenMap.get(node.id) || [];
-
+        ? getPSColorWithFocus(n.ps_score, focusMode, hasAnswered)
+        : getPSColor(n.ps_score, hasAnswered);
+      const kids = (childrenMap.get(n.id) || []).map(buildTreeNode);
       return {
-        id: node.id,
+        id: n.id,
         data: {
-          label: node.name,
-          psScore: node.ps_score,
-          nodeType: node.node_type,
+          label: n.name,
+          psScore: n.ps_score,
+          nodeType: n.node_type,
           color: colorConfig.background,
           borderColor: colorConfig.border,
           textColor: colorConfig.text,
@@ -268,23 +263,12 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
           wrongCount,
           hasAnswered,
         },
-        children: childIds,
+        children: kids.length > 0 ? kids : undefined,
       };
-    });
+    }
 
-    const graphEdges: EdgeData[] = nodes
-      .filter(node => node.parent_id !== null)
-      .map(node => ({
-        id: `${node.parent_id}-${node.id}`,
-        source: node.parent_id!,
-        target: node.id,
-        data: {
-          stroke: '#94a3b8',
-          lineWidth: 1,
-        },
-      }));
-
-    return { nodes: graphNodes, edges: graphEdges };
+    const rootNodes = nodes.filter(n => !n.parent_id).map(buildTreeNode);
+    return { nodes: rootNodes, edges: [] };
   }, [nodes, focusMode, nodeStatsCache]);
 
   const structureChanged = useMemo(() => {
@@ -444,24 +428,6 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
       graphRef.current.fitView();
     }
   }, []);
-
-  const handleCollapseAll = useCallback(() => {
-    if (!graphRef.current) return;
-    try {
-      const rootNodes = nodes.filter(n => !n.parent_id);
-      const allExceptRoot = new Set(nodes.filter(n => n.parent_id).map(n => n.id));
-      const data = graphRef.current.getData();
-      const gNodes = (data as any).nodes || [];
-      gNodes.forEach((n: any) => {
-        if (allExceptRoot.has(n.id) && n.data?.collapsed !== true) {
-          graphRef.current?.collapseElement(n.id);
-        }
-      });
-      graphRef.current.fitView();
-    } catch (e) {
-      console.warn('Failed to collapse all:', e);
-    }
-  }, [nodes]);
 
   const handleExpandAll = useCallback(() => {
     if (!graphRef.current) return;
@@ -677,21 +643,6 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
             </Button>
           </TooltipTrigger>
           <TooltipContent>全部展开</TooltipContent>
-        </Tooltip>
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              size="icon"
-              variant="secondary"
-              onClick={handleCollapseAll}
-              className={GLASS_STYLE}
-              aria-label="全部折叠"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>折叠到根节点</TooltipContent>
         </Tooltip>
       </div>
 
