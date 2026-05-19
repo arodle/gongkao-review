@@ -104,12 +104,16 @@ async function addPSHistoryAPI(record: PSHistoryRecord): Promise<void> {
 
 async function addQuestionAPI(question: QuestionBankItem): Promise<QuestionBankItem | null> {
   try {
-    const data = await fetchFromAPI<{ question: QuestionBankItem }>('/api/questions', {
+    const response = await fetch('/api/questions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(question),
+      body: JSON.stringify({ action: 'add', question }),
     });
-    return data.question;
+    const data = await response.json();
+    if (data.success) {
+      return { ...question, id: data.id };
+    }
+    return null;
   } catch (err) {
     console.error('addQuestion API failed:', err);
     return null;
@@ -117,15 +121,19 @@ async function addQuestionAPI(question: QuestionBankItem): Promise<QuestionBankI
 }
 
 async function updateQuestionAPI(question: QuestionBankItem): Promise<void> {
-  await fetchFromAPI('/api/questions', {
-    method: 'PATCH',
+  await fetch('/api/questions', {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(question),
+    body: JSON.stringify({ action: 'update', question }),
   }).catch(console.error);
 }
 
 async function deleteQuestionAPI(questionId: string): Promise<void> {
-  await fetchFromAPI(`/api/questions?id=${questionId}`, { method: 'DELETE' }).catch(console.error);
+  await fetch('/api/questions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'delete', question: { id: questionId } }),
+  }).catch(console.error);
 }
 
 interface AppState {
