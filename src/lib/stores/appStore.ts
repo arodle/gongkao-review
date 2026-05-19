@@ -7,6 +7,7 @@ import type {
   AnswerRecord,
   ExamResult,
   ExamPaper,
+  StudyNote,
 } from '@/types';
 import { calculatePS, SCENARIO_COEFFICIENTS } from '@/lib/services/psCalculator';
 import { v4 as uuidv4 } from 'uuid';
@@ -136,6 +137,31 @@ async function deleteQuestionAPI(questionId: string): Promise<void> {
   }).catch(console.error);
 }
 
+async function fetchStudyNotesAPI(): Promise<StudyNote[]> {
+  try {
+    const data = await fetchFromAPI<{ notes: StudyNote[] }>('/api/study-notes');
+    return data.notes || [];
+  } catch { return []; }
+}
+
+async function upsertStudyNoteAPI(note: StudyNote): Promise<StudyNote | null> {
+  try {
+    const data = await fetchFromAPI<{ note: StudyNote }>('/api/study-notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(note),
+    });
+    return data.note;
+  } catch (err) {
+    console.error('upsertStudyNote API failed:', err);
+    return null;
+  }
+}
+
+async function deleteStudyNoteAPI(noteId: string): Promise<void> {
+  await fetchFromAPI(`/api/study-notes?id=${noteId}`, { method: 'DELETE' }).catch(console.error);
+}
+
 interface AppState {
   nodes: KnowledgeNodeRecord[];
   practiceRecords: PracticeRecord[];
@@ -144,6 +170,7 @@ interface AppState {
   answerRecords: AnswerRecord[];
   examResults: ExamResult[];
   examPapers: ExamPaper[];
+  studyNotes: StudyNote[];
   isInitialized: boolean;
   isOnline: boolean;
   syncStatus: 'idle' | 'syncing' | 'success' | 'error';
@@ -170,6 +197,10 @@ interface AppState {
   updateNode: (node: Partial<KnowledgeNodeRecord> & { id: string }) => void;
   addNode: (node: Omit<KnowledgeNodeRecord, 'user_id' | 'updated_at' | 'ps_score' | 'last_practiced_at' | 'color_tag'>) => void;
   deleteNode: (nodeId: string) => void;
+  fetchStudyNotes: () => Promise<void>;
+  addStudyNote: (note: StudyNote) => void;
+  updateStudyNote: (note: StudyNote) => void;
+  deleteStudyNote: (noteId: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -180,6 +211,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   answerRecords: [],
   examResults: [],
   examPapers: [],
+  studyNotes: [],
   isInitialized: false,
   isOnline: typeof window !== 'undefined' ? navigator.onLine : true,
   syncStatus: 'idle',
@@ -458,6 +490,32 @@ export const useAppStore = create<AppState>((set, get) => ({
         nodes: state.nodes.filter(n => keepIds.has(n.id)),
       };
     });
+  },
+
+  fetchStudyNotes: async () => {
+    const notes = await fetchStudyNotesAPI();
+    set({ studyNotes: notes });
+  },
+
+  addStudyNote: (note: StudyNote) => {
+    upsertStudyNoteAPI(note).catch(err => console.error('addStudyNote API failed:', err));
+    set(state => ({
+      studyNotes: [note, ...state.studyNotes],
+    }));
+  },
+
+  updateStudyNote: (note: StudyNote) => {
+    upsertStudyNoteAPI(note).catch(err => console.error('updateStudyNote API failed:', err));
+    set(state => ({
+      studyNotes: state.studyNotes.map(n => n.id === note.id ? note : n),
+    }));
+  },
+
+  deleteStudyNote: (noteId: string) => {
+    deleteStudyNoteAPI(noteId).catch(err => console.error('deleteStudyNote API failed:', err));
+    set(state => ({
+      studyNotes: state.studyNotes.filter(n => n.id !== noteId),
+    }));
   },
 }));
 

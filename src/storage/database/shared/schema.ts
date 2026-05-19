@@ -155,3 +155,25 @@ export const practiceSets = pgTable(
 		index("practice_sets_mode_idx").on(table.mode),
 	]
 );
+
+// 学习笔记表
+export const studyNotes = pgTable(
+	"study_notes",
+	{
+		id: varchar("id", { length: 36 }).primaryKey().default(sql`gen_random_uuid()`),
+		user_id: varchar("user_id", { length: 36 }).notNull().default('default_user'),
+		title: varchar("title", { length: 255 }).notNull(),
+		content: text("content"),
+		linked_node_id: varchar("linked_node_id", { length: 36 }),
+		linked_node_name: varchar("linked_node_name", { length: 255 }),
+		tags: jsonb("tags").default(sql`'[]'::jsonb`),
+		color_tag: varchar("color_tag", { length: 50 }).default('default'),
+		created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+		updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+	},
+	(table) => [
+		index("study_notes_user_id_idx").on(table.user_id),
+		index("study_notes_linked_node_id_idx").on(table.linked_node_id),
+		index("study_notes_created_at_idx").on(table.created_at),
+	]
+);

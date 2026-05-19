@@ -10,6 +10,7 @@ import { ReportDashboard } from '@/components/Report/ReportComponents';
 import { CenterDashboard } from '@/components/Center/CenterComponents';
 import { WrongAnswerNotebook } from '@/components/WrongAnswerNotebook/WrongAnswerNotebook';
 import { QuestionBankManager } from '@/components/QuestionBank/QuestionBankManager';
+import { StudyNoteManager } from '@/components/Notes/StudyNoteManager';
 import { cn } from '@/lib/utils';
 import type { AppTab, QuestionBankItem, PracticeMode } from '@/types';
 import {
@@ -28,6 +29,7 @@ import {
   Map,
   Pencil,
   BookMarked,
+  StickyNote,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -95,6 +97,7 @@ function AppContent() {
     { id: 'mindmap', label: '知识导图', icon: GitBranch },
     { id: 'practice', label: '智能练习', icon: BookOpen },
     { id: 'bank', label: '题库管理', icon: Target },
+    { id: 'notes', label: '学习笔记', icon: StickyNote },
     { id: 'wrongbook', label: '错题本', icon: BookMarked },
     { id: 'report', label: '数据报告', icon: BarChart3 },
     { id: 'center', label: '个人中心', icon: User },
@@ -539,6 +542,19 @@ function AppContent() {
               className="h-full flex flex-col"
             >
               <QuestionBankManager />
+            </motion.div>
+          )}
+
+          {/* Study Notes Tab */}
+          {activeTab === 'notes' && (
+            <motion.div
+              key="notes"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="h-full flex flex-col"
+            >
+              <StudyNoteManager />
             </motion.div>
           )}
 

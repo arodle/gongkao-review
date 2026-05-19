@@ -117,7 +117,7 @@ export interface SimulatedPaperConfig {
   createdAt: string;
 }
 
-export type AppTab = 'mindmap' | 'practice' | 'exam' | 'bank' | 'wrongbook' | 'report' | 'center';
+export type AppTab = 'mindmap' | 'practice' | 'exam' | 'bank' | 'wrongbook' | 'notes' | 'report' | 'center';
 
 export interface PSColorConfig {
   background: string;
@@ -135,3 +135,16 @@ export interface GraphNode {
 }
 
 export type PracticeMode = 'sequence' | 'random' | 'targeted' | 'exam';
+
+export interface StudyNote {
+  id: string;
+  user_id: string;
+  title: string;
+  content: string;
+  linked_node_id: string | null;
+  linked_node_name: string | null;
+  tags: string[];
+  color_tag: string;
+  created_at: string;
+  updated_at: string;
+}

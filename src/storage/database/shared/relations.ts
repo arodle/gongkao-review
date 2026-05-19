@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm/relations";
-import { healthCheck, mindMaps, knowledgeNodes, practiceRecords, psHistory, questionBank, answerRecords, practiceSets } from "./schema";
+import { healthCheck, mindMaps, knowledgeNodes, practiceRecords, psHistory, questionBank, answerRecords, practiceSets, studyNotes } from "./schema";
 
 export const healthCheckRelations = relations(healthCheck, () => ({}));
 
@@ -43,3 +43,10 @@ export const answerRecordsRelations = relations(answerRecords, ({ one }) => ({
 }));
 
 export const practiceSetsRelations = relations(practiceSets, () => ({}));
+
+export const studyNotesRelations = relations(studyNotes, ({ one }) => ({
+  linkedNode: one(knowledgeNodes, {
+    fields: [studyNotes.linked_node_id],
+    references: [knowledgeNodes.id],
+  }),
+}));

@@ -290,6 +290,59 @@ export async function getDataStatus(): Promise<{ nodeCount: number; practiceCoun
   };
 }
 
+// ==================== Study Notes ====================
+
+export interface StudyNoteRow {
+  id: string;
+  user_id: string;
+  title: string;
+  content: string | null;
+  linked_node_id: string | null;
+  linked_node_name: string | null;
+  tags: string[];
+  color_tag: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function getAllStudyNotes(userId = CURRENT_USER): Promise<StudyNoteRow[]> {
+  const sql = getSql();
+  const rows = await sql`SELECT * FROM study_notes WHERE user_id = ${userId} ORDER BY updated_at DESC` as any;
+  return rows.map(mapStudyNoteRow);
+}
+
+export async function getStudyNoteById(id: string): Promise<StudyNoteRow | null> {
+  const sql = getSql();
+  const rows = await sql`SELECT * FROM study_notes WHERE id = ${id}` as any;
+  return rows.length > 0 ? mapStudyNoteRow(rows[0]) : null;
+}
+
+export async function getStudyNotesByNode(nodeId: string, userId = CURRENT_USER): Promise<StudyNoteRow[]> {
+  const sql = getSql();
+  const rows = await sql`SELECT * FROM study_notes WHERE linked_node_id = ${nodeId} AND user_id = ${userId} ORDER BY updated_at DESC` as any;
+  return rows.map(mapStudyNoteRow);
+}
+
+export async function upsertStudyNote(note: StudyNoteRow): Promise<StudyNoteRow> {
+  const sql = getSql();
+  await sql`
+    INSERT INTO study_notes (id, user_id, title, content, linked_node_id, linked_node_name, tags, color_tag, updated_at)
+    VALUES (${note.id}, ${note.user_id || CURRENT_USER}, ${note.title}, ${note.content || ''}, ${note.linked_node_id}, ${note.linked_node_name},
+            ${JSON.stringify(note.tags || [])}, ${note.color_tag || 'default'}, NOW())
+    ON CONFLICT (id) DO UPDATE SET
+      title = EXCLUDED.title, content = EXCLUDED.content,
+      linked_node_id = EXCLUDED.linked_node_id, linked_node_name = EXCLUDED.linked_node_name,
+      tags = EXCLUDED.tags, color_tag = EXCLUDED.color_tag, updated_at = NOW()
+  `;
+  const [row] = await sql`SELECT * FROM study_notes WHERE id = ${note.id}` as any;
+  return mapStudyNoteRow(row);
+}
+
+export async function deleteStudyNote(id: string): Promise<void> {
+  const sql = getSql();
+  await sql`DELETE FROM study_notes WHERE id = ${id}`;
+}
+
 // ==================== Helpers ====================
 
 function mapNodeRow(row: any): KnowledgeNodeRow {
@@ -335,5 +388,24 @@ function mapPSHistoryRow(row: any): PSHistoryRow {
     ps_score: row.ps_score,
     recorded_at: row.recorded_at instanceof Date ? row.recorded_at.toISOString() : String(row.recorded_at),
     user_id: row.user_id,
+  };
+}
+
+function mapStudyNoteRow(row: any): StudyNoteRow {
+  let tags: string[] = [];
+  try {
+    tags = typeof row.tags === 'string' ? JSON.parse(row.tags) : (row.tags || []);
+  } catch { tags = []; }
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    title: row.title,
+    content: row.content,
+    linked_node_id: row.linked_node_id,
+    linked_node_name: row.linked_node_name,
+    tags,
+    color_tag: row.color_tag || 'default',
+    created_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    updated_at: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
   };
 }
