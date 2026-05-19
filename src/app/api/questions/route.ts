@@ -41,6 +41,7 @@ export async function GET() {
         linkedAngleName: '',
         knowledgePath: row.knowledge_path || '',
         source: row.source || 'manual',
+        reference: row.reference || '',
         createdAt: row.created_at,
         images: [],
       };
@@ -82,7 +83,8 @@ export async function POST(request: NextRequest) {
             explanation = ${question.explanation || null},
             knowledge_path = ${question.knowledgePath || null},
             linked_angle_id = ${question.linkedAngleId || null},
-            source = ${question.source || 'manual'}
+            source = ${question.source || 'manual'},
+            reference = ${question.reference || null}
           WHERE id = ${question.id}
         `;
         return NextResponse.json({ success: true, action: 'update', id: question.id });
@@ -94,7 +96,7 @@ export async function POST(request: NextRequest) {
           INSERT INTO question_bank (
             id, user_id, question_text, option_a, option_b, option_c, option_d,
             correct_answer, explanation, knowledge_path, linked_angle_id, source,
-            created_at
+            reference, created_at
           ) VALUES (
             ${newId},
             'default_user',
@@ -108,6 +110,7 @@ export async function POST(request: NextRequest) {
             ${question.knowledgePath || null},
             ${question.linkedAngleId || null},
             ${question.source || 'manual'},
+            ${question.reference || null},
             NOW()
           )
         `;

@@ -76,6 +76,7 @@ async function checkTables() {
         "knowledge_path" varchar(500),
         "linked_angle_id" varchar(100),
         "source" varchar(50) NOT NULL DEFAULT 'manual',
+        "reference" text,
         "mind_map_id" varchar(36),
         "created_at" timestamp with time zone DEFAULT now() NOT NULL
       )
