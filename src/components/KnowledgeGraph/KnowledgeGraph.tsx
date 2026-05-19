@@ -201,6 +201,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
   const [showWrongAnswerList, setShowWrongAnswerList] = useState<string | null>(null);
   const [editingAnnotation, setEditingAnnotation] = useState<string | null>(null);
   const [annotationDraft, setAnnotationDraft] = useState('');
+  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
 
   const { nodes, isInitialized, updateNodePSScore, getNodeStats, getWrongAnswersByNodeId, psHistory, practiceRecords } = useAppStore();
 
@@ -234,26 +235,39 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
   const graphData = useMemo((): GraphData => {
     if (!nodes.length) return { nodes: [], edges: [] };
 
-    const nodeMap = new Map(nodes.map(n => [n.id, n]));
-    const childrenMap = new Map<string, any[]>();
+    const childrenMap = new Map<string, KnowledgeNodeRecord[]>();
     nodes.forEach(n => {
       if (n.parent_id) { const list = childrenMap.get(n.parent_id) || []; list.push(n); childrenMap.set(n.parent_id, list); }
     });
 
-    function buildTreeNode(n: any): any {
-      const cachedStats = nodeStatsCache.get(n.id);
+    // 收集所有在任一已折叠节点之下的子节点 ID
+    const hiddenIds = new Set<string>();
+    function collectHidden(pid: string) {
+      const kids = childrenMap.get(pid) || [];
+      kids.forEach(k => { hiddenIds.add(k.id); collectHidden(k.id); });
+    }
+    collapsedNodes.forEach(pid => collectHidden(pid));
+
+    const visibleNodes = nodes.filter(n => !hiddenIds.has(n.id));
+    const graphNodes: any[] = visibleNodes.map(node => {
+      const cachedStats = nodeStatsCache.get(node.id);
       const hasAnswered = cachedStats?.hasAnswered ?? false;
       const wrongCount = cachedStats?.wrongCount ?? 0;
       const colorConfig = focusMode
-        ? getPSColorWithFocus(n.ps_score, focusMode, hasAnswered)
-        : getPSColor(n.ps_score, hasAnswered);
-      const kids = (childrenMap.get(n.id) || []).map(buildTreeNode);
+        ? getPSColorWithFocus(node.ps_score, focusMode, hasAnswered)
+        : getPSColor(node.ps_score, hasAnswered);
+      const kids = childrenMap.get(node.id) || [];
+      const hasChildren = kids.length > 0;
+      const isCollapsed = collapsedNodes.has(node.id);
+      const expandIcon = hasChildren && !isCollapsed ? '▼ ' : hasChildren ? '▶ ' : '';
+      const label = expandIcon + node.name;
+
       return {
-        id: n.id,
+        id: node.id,
         data: {
-          label: n.name,
-          psScore: n.ps_score,
-          nodeType: n.node_type,
+          label,
+          psScore: node.ps_score,
+          nodeType: node.node_type,
           color: colorConfig.background,
           borderColor: colorConfig.border,
           textColor: colorConfig.text,
@@ -262,14 +276,30 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
           stats: { correct: cachedStats?.correct ?? 0, wrong: cachedStats?.wrong ?? 0 },
           wrongCount,
           hasAnswered,
+          hasChildren,
+          isCollapsed,
         },
-        children: kids.length > 0 ? kids : undefined,
+        style: hasChildren ? { border: '2px dashed ' + colorConfig.border } : {},
       };
-    }
+    });
 
-    const rootNodes = nodes.filter(n => !n.parent_id).map(buildTreeNode);
-    return { nodes: rootNodes, edges: [] };
-  }, [nodes, focusMode, nodeStatsCache]);
+    const graphEdges: any[] = [];
+    visibleNodes.forEach(node => {
+      if (!node.parent_id) return;
+      if (hiddenIds.has(node.parent_id)) return;
+      const parent = visibleNodes.find(n => n.id === node.parent_id);
+      if (parent) {
+        graphEdges.push({
+          id: `${node.parent_id}-${node.id}`,
+          source: node.parent_id,
+          target: node.id,
+          data: { stroke: '#94a3b8', lineWidth: 1.5 },
+        });
+      }
+    });
+
+    return { nodes: graphNodes, edges: graphEdges };
+  }, [nodes, focusMode, nodeStatsCache, collapsedNodes]);
 
   const structureChanged = useMemo(() => {
     return nodes.length > 0;
@@ -358,10 +388,21 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
 
           const latestNodes = nodesRef.current;
           const node = latestNodes.find(n => n.id === nodeId);
-          if (node) {
-            setSelectedNode(node);
-            onNodeSelect?.(node);
+          if (!node) return;
+
+          // Check if node has children — if so, toggle collapse
+          const childrenMap = new Map<string, KnowledgeNodeRecord[]>();
+          latestNodes.forEach(n => {
+            if (n.parent_id) { const list = childrenMap.get(n.parent_id) || []; list.push(n); childrenMap.set(n.parent_id, list); }
+          });
+          const kids = childrenMap.get(nodeId) || [];
+          if (kids.length > 0) {
+            handleToggleCollapse(nodeId);
+            return;
           }
+
+          setSelectedNode(node);
+          onNodeSelect?.(node);
         });
 
         graphRef.current = graph;
@@ -429,20 +470,17 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
     }
   }, []);
 
+  const handleToggleCollapse = useCallback((nodeId: string) => {
+    setCollapsedNodes(prev => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+      return next;
+    });
+  }, []);
+
   const handleExpandAll = useCallback(() => {
-    if (!graphRef.current) return;
-    try {
-      const data = graphRef.current.getData();
-      const gNodes = (data as any).nodes || [];
-      gNodes.forEach((n: any) => {
-        if (n.data?.collapsed === true) {
-          graphRef.current?.expandElement(n.id);
-        }
-      });
-      graphRef.current.fitView();
-    } catch (e) {
-      console.warn('Failed to expand all:', e);
-    }
+    setCollapsedNodes(new Set());
   }, []);
 
   const toggleFocusMode = useCallback(() => {
