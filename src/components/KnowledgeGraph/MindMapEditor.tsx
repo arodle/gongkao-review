@@ -728,14 +728,6 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
                                   {q.options.length} 个选项
                                 </Badge>
                               )}
-                              {q.difficulty && (
-                                <Badge 
-                                  variant={q.difficulty === 'hard' ? 'destructive' : q.difficulty === 'medium' ? 'default' : 'outline'}
-                                  className="text-xs"
-                                >
-                                  {q.difficulty === 'hard' ? '困难' : q.difficulty === 'medium' ? '中等' : '简单'}
-                                </Badge>
-                              )}
                             </div>
                           </div>
                         ))}
