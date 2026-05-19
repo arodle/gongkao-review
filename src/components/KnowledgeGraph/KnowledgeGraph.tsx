@@ -19,10 +19,13 @@ import {
   List,
   BookOpen,
   FileText,
+  Edit3,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Sheet,
   SheetContent,
@@ -195,6 +198,8 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
   const [flyingDots, setFlyingDots] = useState<FlyingDot[]>([]);
   const [isReady, setIsReady] = useState(false);
   const [showWrongAnswerList, setShowWrongAnswerList] = useState<string | null>(null);
+  const [editingAnnotation, setEditingAnnotation] = useState<string | null>(null);
+  const [annotationDraft, setAnnotationDraft] = useState('');
 
   const { nodes, isInitialized, updateNodePSScore, getNodeStats, getWrongAnswersByNodeId, psHistory, practiceRecords } = useAppStore();
 
@@ -483,6 +488,52 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
     }
   }, [selectedNode]);
 
+  const handleStartEditAnnotation = useCallback((node: KnowledgeNodeRecord) => {
+    setEditingAnnotation(node.id);
+    setAnnotationDraft(node.annotation || '');
+  }, []);
+
+  const handleSaveAnnotation = useCallback(() => {
+    if (!editingAnnotation) return;
+    const node = nodes.find(n => n.id === editingAnnotation);
+    if (!node) return;
+
+    useAppStore.getState().updateNode({
+      id: editingAnnotation,
+      annotation: annotationDraft || undefined,
+    });
+
+    if (annotationDraft && annotationDraft !== (node.annotation || '')) {
+      try {
+        const parts: string[] = [];
+        let current: KnowledgeNodeRecord | undefined = nodes.find(n => n.id === editingAnnotation);
+        while (current) {
+          const c = current;
+          parts.unshift(c.name);
+          current = c.parent_id ? nodes.find(n => n.id === c.parent_id) : undefined;
+        }
+        const fullPath = parts.join(' > ');
+        useAppStore.getState().addStudyNote({
+          id: `note_node_${editingAnnotation}`,
+          user_id: 'default_user',
+          title: `${node.name} - 学习笔记`,
+          content: annotationDraft,
+          linked_node_id: editingAnnotation,
+          linked_node_name: fullPath,
+          tags: [node.node_type],
+          color_tag: 'default',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error('[KnowledgeGraph] failed to sync annotation to study_notes:', err);
+      }
+    }
+
+    setEditingAnnotation(null);
+    setAnnotationDraft('');
+  }, [editingAnnotation, annotationDraft, nodes]);
+
   const selectedNodeStats = useMemo(() => {
     if (!selectedNode) return null;
     return getNodeStatsData(selectedNode.id);
@@ -722,14 +773,44 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice, autoShowWrong
                 </div>
               )}
 
-              {selectedNode.annotation && (
-                <div className="space-y-2">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
                   <h4 className="text-sm font-medium">学习笔记</h4>
+                  {editingAnnotation !== selectedNode.id && (
+                    <Button variant="ghost" size="sm" onClick={() => handleStartEditAnnotation(selectedNode)}>
+                      <Edit3 className="h-3 w-3 mr-1" />
+                      {selectedNode.annotation ? '编辑' : '添加笔记'}
+                    </Button>
+                  )}
+                </div>
+                {editingAnnotation === selectedNode.id ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      value={annotationDraft}
+                      onChange={e => setAnnotationDraft(e.target.value)}
+                      placeholder="输入学习笔记..."
+                      rows={4}
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={handleSaveAnnotation}>
+                        <Check className="h-3 w-3 mr-1" />
+                        保存
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => { setEditingAnnotation(null); setAnnotationDraft(''); }}>
+                        <X className="h-3 w-3 mr-1" />
+                        取消
+                      </Button>
+                    </div>
+                  </div>
+                ) : selectedNode.annotation ? (
                   <p className="text-sm text-amber-600 dark:text-amber-400 italic">
                     {selectedNode.annotation}
                   </p>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">暂无笔记，点击"添加笔记"开始记录</p>
+                )}
+              </div>
 
               {selectedNodeStats && (
                 <div className="grid grid-cols-2 gap-4">

@@ -420,27 +420,43 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
     });
 
     const annotationChanged = editForm.annotation !== (editingNode.annotation || '');
+    console.log('[MindMapEditor] handleSaveEdit:', {
+      nodeId: editingNode.id,
+      nodeName: editingNode.name,
+      annotationChanged,
+      hasAnnotation: !!editForm.annotation,
+      annotationLen: editForm.annotation?.length || 0,
+    });
     if (annotationChanged && editForm.annotation) {
-      const parts: string[] = [];
-      let current: KnowledgeNodeRecord | undefined = nodes.find(n => n.id === editingNode.id);
-      while (current) {
-        const c = current;
-        parts.unshift(c.name);
-        current = c.parent_id ? nodes.find(n => n.id === c.parent_id) : undefined;
+      try {
+        const parts: string[] = [];
+        let current: KnowledgeNodeRecord | undefined = nodes.find(n => n.id === editingNode.id);
+        while (current) {
+          const c = current;
+          parts.unshift(c.name);
+          current = c.parent_id ? nodes.find(n => n.id === c.parent_id) : undefined;
+        }
+        const fullPath = parts.join(' > ');
+        console.log('[MindMapEditor] syncing annotation to study_notes:', {
+          path: fullPath,
+          nodeId: editingNode.id,
+          title: `${editingNode.name} - 学习笔记`,
+        });
+        useAppStore.getState().addStudyNote({
+          id: `note_node_${editingNode.id}`,
+          user_id: 'default_user',
+          title: `${editingNode.name} - 学习笔记`,
+          content: editForm.annotation,
+          linked_node_id: editingNode.id,
+          linked_node_name: fullPath,
+          tags: [editingNode.node_type],
+          color_tag: 'default',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error('[MindMapEditor] failed to sync annotation to study_notes:', err);
       }
-      const fullPath = parts.join(' > ');
-      useAppStore.getState().addStudyNote({
-        id: `note_node_${editingNode.id}`,
-        user_id: 'default_user',
-        title: `${editingNode.name} - 学习笔记`,
-        content: editForm.annotation,
-        linked_node_id: editingNode.id,
-        linked_node_name: fullPath,
-        tags: [editingNode.node_type],
-        color_tag: 'default',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
     }
 
     setShowEditDialog(false);
