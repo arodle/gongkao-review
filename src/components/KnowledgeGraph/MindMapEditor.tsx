@@ -50,6 +50,7 @@ import {
   ChevronRight,
   ChevronLeft,
   ChevronRightIcon,
+  ChevronUp,
   Search,
   Pin,
   ZoomIn,
@@ -277,6 +278,40 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
   });
   const [showSidebar, setShowSidebar] = useState(true);
   const [showOnlyWeak, setShowOnlyWeak] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(320);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isQuestionsExpanded, setIsQuestionsExpanded] = useState(false);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      const newWidth = Math.max(200, Math.min(600, e.clientX));
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isDragging]);
 
   useEffect(() => {
     if (nodes.length > 0 && expandedNodes.size === 0) {
@@ -472,10 +507,11 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
         {showSidebar && (
           <motion.div
             initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 320, opacity: 1 }}
+            animate={{ width: sidebarWidth, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="border-r bg-background flex flex-col overflow-hidden"
+            className="border-r bg-background flex flex-col overflow-hidden relative"
+            style={{ width: sidebarWidth }}
           >
             <div className="p-3 border-b space-y-2">
               <div className="flex items-center gap-2">
@@ -538,6 +574,16 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {showSidebar && (
+        <div
+          className={cn(
+            'w-1 cursor-col-resize hover:bg-primary/30 transition-colors flex-shrink-0',
+            isDragging && 'bg-primary'
+          )}
+          onMouseDown={handleMouseDown}
+        />
+      )}
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="p-3 border-b flex items-center justify-between shrink-0">
@@ -638,26 +684,66 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
                 {nodeQuestions.length > 0 && (
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <FileText className="h-5 w-5" />
-                        相关题目 ({nodeQuestions.length})
-                      </CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <FileText className="h-5 w-5" />
+                          相关题目 ({nodeQuestions.length})
+                        </CardTitle>
+                        {nodeQuestions.length > 5 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setIsQuestionsExpanded(!isQuestionsExpanded)}
+                            className="text-xs"
+                          >
+                            {isQuestionsExpanded ? (
+                              <>
+                                <ChevronUp className="h-3 w-3 mr-1" />
+                                收起
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="h-3 w-3 mr-1" />
+                                展开全部
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
-                        {nodeQuestions.slice(0, 5).map((q) => (
+                        {(isQuestionsExpanded ? nodeQuestions : nodeQuestions.slice(0, 5)).map((q) => (
                           <div
                             key={q.id}
                             className="p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
                           >
                             <p className="text-sm line-clamp-2">{q.content}</p>
-                            <div className="mt-2 flex items-center gap-2">
+                            <div className="mt-2 flex items-center gap-2 flex-wrap">
                               <Badge variant="outline" className="text-xs">
                                 {(q.knowledgePath || '').split('/').pop()}
                               </Badge>
+                              {q.options && q.options.length > 0 && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {q.options.length} 个选项
+                                </Badge>
+                              )}
+                              {q.difficulty && (
+                                <Badge 
+                                  variant={q.difficulty === 'hard' ? 'destructive' : q.difficulty === 'medium' ? 'default' : 'outline'}
+                                  className="text-xs"
+                                >
+                                  {q.difficulty === 'hard' ? '困难' : q.difficulty === 'medium' ? '中等' : '简单'}
+                                </Badge>
+                              )}
                             </div>
                           </div>
                         ))}
+                        {!isQuestionsExpanded && nodeQuestions.length > 5 && (
+                          <div className="text-center text-sm text-muted-foreground py-2">
+                            还有 {nodeQuestions.length - 5} 道题目未显示，点击"展开全部"查看
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
