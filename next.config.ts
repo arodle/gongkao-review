@@ -1,11 +1,9 @@
 import type { NextConfig } from 'next';
 
-const isStatic = process.env.BUILD_MODE === 'static';
-
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['*.dev.coze.site', '*.agent-sandbox-bj-a2-gw.trae.cn', 'localhost', '127.0.0.1'],
   images: {
-    unoptimized: isStatic,
+    unoptimized: false,
     remotePatterns: [
       {
         protocol: 'https',
@@ -14,11 +12,7 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  ...(isStatic && {
-    output: 'export',
-    basePath: '/gongkao-review',
-    trailingSlash: true,
-  }),
+  output: 'standalone',
 };
 
 export default nextConfig;
