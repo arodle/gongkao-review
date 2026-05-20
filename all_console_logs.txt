@@ -1,0 +1,458 @@
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[log] [HMR] connected
+[log] [KnowledgeGraph] nodes: 204 roots: [行测]
+[log] [KnowledgeGraph] Built tree data: {
+  "id": "subject_1779088263531_8st2",
+  "label": "行测",
+  "data": {
+    "nodeType": "subject",
+    "bgColor": "#e5e7eb",
+    "borderColor": "#d1d5db",
+    "textColor": "#374151",
+    "opacity": 0.8,
+    "side": "right"
+  },
+  "children": [
+    {
+      "id": "knowledge_1779088263531_i8j2",
+      "label": "言语理解与表达",
+      "data": {
+        "nodeType": "knowledge",
+        "bgColor": "#e5e7eb",
+        "borderColor": "#d1d5db",
+        "textColor": "#374151",
+        "opacity": 0.8,
+        "side": "left"
+      },
+      "children": [
+        {
+          "id": "subknowledge_1779088263531_bw8a",
+          "label": "片段阅读",
+          "data": {
+            "nodeType": "subknowledge",
+            "bgColor": "#e5e7eb",
+            "borderColor": "#d1d5db",
+            "textColor": "#374151",
+            "opacity": 0.8,
+            "side": "right"
+          },
+          "children": [
+            {
+              "id": "angle_1779088263531_c12a",
+              "label": "中心理解题",
+              "data": {
+                "nodeType": "angle",
+                "bgColor": "#e5e7eb",
+                "borderColor": "#d1d5db",
+                "textColor": "#374151",
+                "opacity": 0.8,
+                "side": "right"
+              },
+              "children": []
+            },
+            {
+              "id": "angle_1779088263531_2jo8",
+              "label": "细节判断题",
+              "data": {
+                "nodeType": "angle",
+                "bgColor": "#e5e7eb",
+                "borderColor": "#d1d5db",
+                "textColor": "#374151",
+                "opacity": 0.8,
+                "side": "right"
+              },
+              "children": []
+            },
+            {
+              "id": "angle_1779088263531_8pez",
+              "label": "标题填入题",
+              "data": {
+                "nodeType": "angle",
+                "bgColor": "#e5e7eb",
+                "borderColor": "#d1d5db",
+                "textColor": "#374151",
+                "opacity": 0.8,
+      
+[log] [KnowledgeGraph] nodes: 204 roots: [行测]
+[log] [KnowledgeGraph] Built tree data: {
+  "id": "subject_1779088263531_8st2",
+  "label": "行测",
+  "data": {
+    "nodeType": "subject",
+    "bgColor": "#e5e7eb",
+    "borderColor": "#d1d5db",
+    "textColor": "#374151",
+    "opacity": 0.8,
+    "side": "right"
+  },
+  "children": [
+    {
+      "id": "knowledge_1779088263531_i8j2",
+      "label": "言语理解与表达",
+      "data": {
+        "nodeType": "knowledge",
+        "bgColor": "#e5e7eb",
+        "borderColor": "#d1d5db",
+        "textColor": "#374151",
+        "opacity": 0.8,
+        "side": "left"
+      },
+      "children": [
+        {
+          "id": "subknowledge_1779088263531_bw8a",
+          "label": "片段阅读",
+          "data": {
+            "nodeType": "subknowledge",
+            "bgColor": "#e5e7eb",
+            "borderColor": "#d1d5db",
+            "textColor": "#374151",
+            "opacity": 0.8,
+            "side": "right"
+          },
+          "children": [
+            {
+              "id": "angle_1779088263531_c12a",
+              "label": "中心理解题",
+              "data": {
+                "nodeType": "angle",
+                "bgColor": "#e5e7eb",
+                "borderColor": "#d1d5db",
+                "textColor": "#374151",
+                "opacity": 0.8,
+                "side": "right"
+              },
+              "children": []
+            },
+            {
+              "id": "angle_1779088263531_2jo8",
+              "label": "细节判断题",
+              "data": {
+                "nodeType": "angle",
+                "bgColor": "#e5e7eb",
+                "borderColor": "#d1d5db",
+                "textColor": "#374151",
+                "opacity": 0.8,
+                "side": "right"
+              },
+              "children": []
+            },
+            {
+              "id": "angle_1779088263531_8pez",
+              "label": "标题填入题",
+              "data": {
+                "nodeType": "angle",
+                "bgColor": "#e5e7eb",
+                "borderColor": "#d1d5db",
+                "textColor": "#374151",
+                "opacity": 0.8,
+      
+[log] [KnowledgeGraph] Component state check: {containerRefExists: true, isInitialized: true, nodesCount: 204, initAttempted: false}
+[log] [KnowledgeGraph] Starting initialization...
+[log] [KnowledgeGraph] Importing G6...
+[log] [KnowledgeGraph] Component state check: {containerRefExists: true, isInitialized: true, nodesCount: 204, initAttempted: true}
+[log] [KnowledgeGraph] Not ready for initialization yet
+[log] [KnowledgeGraph] G6 imported successfully
+[log] [KnowledgeGraph] Creating graph with data: {id: subject_1779088263531_8st2, label: 行测, data: Object, children: Array(5)}
+[log] [KnowledgeGraph] Setting up events before rendering...
+[log] [KnowledgeGraph] Calling graph.render()...
+[log] [KnowledgeGraph] afterrender event triggered
+[log] [KnowledgeGraph] graph.render() completed
+[log] [KnowledgeGraph] Calling fitView directly after render...
+[log] [KnowledgeGraph] fitView completed (direct call)
+[log] [KnowledgeGraph] Graph initialization complete
+[log] [KnowledgeGraph] nodes: 204 roots: [行测]
+[log] [KnowledgeGraph] Built tree data: {
+  "id": "subject_1779088263531_8st2",
+  "label": "行测",
+  "data": {
+    "nodeType": "subject",
+    "bgColor": "#e5e7eb",
+    "borderColor": "#d1d5db",
+    "textColor": "#374151",
+    "opacity": 0.8,
+    "side": "right"
+  },
+  "children": [
+    {
+      "id": "knowledge_1779088263531_i8j2",
+      "label": "言语理解与表达",
+      "data": {
+        "nodeType": "knowledge",
+        "bgColor": "#e5e7eb",
+        "borderColor": "#d1d5db",
+        "textColor": "#374151",
+        "opacity": 0.8,
+        "side": "left"
+      },
+      "children": [
+        {
+          "id": "subknowledge_1779088263531_bw8a",
+          "label": "片段阅读",
+          "data": {
+            "nodeType": "subknowledge",
+            "bgColor": "#e5e7eb",
+            "borderColor": "#d1d5db",
+            "textColor": "#374151",
+            "opacity": 0.8,
+            "side": "right"
+          },
+          "children": [
+            {
+              "id": "angle_1779088263531_c12a",
+              "label": "中心理解题",
+              "data": {
+                "nodeType": "angle",
+                "bgColor": "#e5e7eb",
+                "borderColor": "#d1d5db",
+                "textColor": "#374151",
+                "opacity": 0.8,
+                "side": "right"
+              },
+              "children": []
+            },
+            {
+              "id": "angle_1779088263531_2jo8",
+              "label": "细节判断题",
+              "data": {
+                "nodeType": "angle",
+                "bgColor": "#e5e7eb",
+                "borderColor": "#d1d5db",
+                "textColor": "#374151",
+                "opacity": 0.8,
+                "side": "right"
+              },
+              "children": []
+            },
+            {
+              "id": "angle_1779088263531_8pez",
+              "label": "标题填入题",
+              "data": {
+                "nodeType": "angle",
+                "bgColor": "#e5e7eb",
+                "borderColor": "#d1d5db",
+                "textColor": "#374151",
+                "opacity": 0.8,
+      
+[log] [KnowledgeGraph] nodes: 204 roots: [行测]
+[log] [KnowledgeGraph] Built tree data: {
+  "id": "subject_1779088263531_8st2",
+  "label": "行测",
+  "data": {
+    "nodeType": "subject",
+    "bgColor": "#e5e7eb",
+    "borderColor": "#d1d5db",
+    "textColor": "#374151",
+    "opacity": 0.8,
+    "side": "right"
+  },
+  "children": [
+    {
+      "id": "knowledge_1779088263531_i8j2",
+      "label": "言语理解与表达",
+      "data": {
+        "nodeType": "knowledge",
+        "bgColor": "#e5e7eb",
+        "borderColor": "#d1d5db",
+        "textColor": "#374151",
+        "opacity": 0.8,
+        "side": "left"
+      },
+      "children": [
+        {
+          "id": "subknowledge_1779088263531_bw8a",
+          "label": "片段阅读",
+          "data": {
+            "nodeType": "subknowledge",
+            "bgColor": "#e5e7eb",
+            "borderColor": "#d1d5db",
+            "textColor": "#374151",
+            "opacity": 0.8,
+            "side": "right"
+          },
+          "children": [
+            {
+              "id": "angle_1779088263531_c12a",
+              "label": "中心理解题",
+              "data": {
+                "nodeType": "angle",
+                "bgColor": "#e5e7eb",
+                "borderColor": "#d1d5db",
+                "textColor": "#374151",
+                "opacity": 0.8,
+                "side": "right"
+              },
+              "children": []
+            },
+            {
+              "id": "angle_1779088263531_2jo8",
+              "label": "细节判断题",
+              "data": {
+                "nodeType": "angle",
+                "bgColor": "#e5e7eb",
+                "borderColor": "#d1d5db",
+                "textColor": "#374151",
+                "opacity": 0.8,
+                "side": "right"
+              },
+              "children": []
+            },
+            {
+              "id": "angle_1779088263531_8pez",
+              "label": "标题填入题",
+              "data": {
+                "nodeType": "angle",
+                "bgColor": "#e5e7eb",
+                "borderColor": "#d1d5db",
+                "textColor": "#374151",
+                "opacity": 0.8,
+      
+[log] [KnowledgeGraph] Component state check: {containerRefExists: true, isInitialized: true, nodesCount: 204, initAttempted: true}
+[log] [KnowledgeGraph] Not ready for initialization yet
+[log] [KnowledgeGraph] nodes: 204 roots: [行测]
+[log] [KnowledgeGraph] Built tree data: {
+  "id": "subject_1779088263531_8st2",
+  "label": "行测",
+  "data": {
+    "nodeType": "subject",
+    "bgColor": "#e5e7eb",
+    "borderColor": "#d1d5db",
+    "textColor": "#374151",
+    "opacity": 0.8,
+    "side": "right"
+  },
+  "children": [
+    {
+      "id": "knowledge_1779088263531_i8j2",
+      "label": "言语理解与表达",
+      "data": {
+        "nodeType": "knowledge",
+        "bgColor": "#e5e7eb",
+        "borderColor": "#d1d5db",
+        "textColor": "#374151",
+        "opacity": 0.8,
+        "side": "left"
+      },
+      "children": [
+        {
+          "id": "subknowledge_1779088263531_bw8a",
+          "label": "片段阅读",
+          "data": {
+            "nodeType": "subknowledge",
+            "bgColor": "#e5e7eb",
+            "borderColor": "#d1d5db",
+            "textColor": "#374151",
+            "opacity": 0.8,
+            "side": "right"
+          },
+          "children": [
+            {
+              "id": "angle_1779088263531_c12a",
+              "label": "中心理解题",
+              "data": {
+                "nodeType": "angle",
+                "bgColor": "#e5e7eb",
+                "borderColor": "#d1d5db",
+                "textColor": "#374151",
+                "opacity": 0.8,
+                "side": "right"
+              },
+              "children": []
+            },
+            {
+              "id": "angle_1779088263531_2jo8",
+              "label": "细节判断题",
+              "data": {
+                "nodeType": "angle",
+                "bgColor": "#e5e7eb",
+                "borderColor": "#d1d5db",
+                "textColor": "#374151",
+                "opacity": 0.8,
+                "side": "right"
+              },
+              "children": []
+            },
+            {
+              "id": "angle_1779088263531_8pez",
+              "label": "标题填入题",
+              "data": {
+                "nodeType": "angle",
+                "bgColor": "#e5e7eb",
+                "borderColor": "#d1d5db",
+                "textColor": "#374151",
+                "opacity": 0.8,
+      
+[log] [KnowledgeGraph] nodes: 204 roots: [行测]
+[log] [KnowledgeGraph] Built tree data: {
+  "id": "subject_1779088263531_8st2",
+  "label": "行测",
+  "data": {
+    "nodeType": "subject",
+    "bgColor": "#e5e7eb",
+    "borderColor": "#d1d5db",
+    "textColor": "#374151",
+    "opacity": 0.8,
+    "side": "right"
+  },
+  "children": [
+    {
+      "id": "knowledge_1779088263531_i8j2",
+      "label": "言语理解与表达",
+      "data": {
+        "nodeType": "knowledge",
+        "bgColor": "#e5e7eb",
+        "borderColor": "#d1d5db",
+        "textColor": "#374151",
+        "opacity": 0.8,
+        "side": "left"
+      },
+      "children": [
+        {
+          "id": "subknowledge_1779088263531_bw8a",
+          "label": "片段阅读",
+          "data": {
+            "nodeType": "subknowledge",
+            "bgColor": "#e5e7eb",
+            "borderColor": "#d1d5db",
+            "textColor": "#374151",
+            "opacity": 0.8,
+            "side": "right"
+          },
+          "children": [
+            {
+              "id": "angle_1779088263531_c12a",
+              "label": "中心理解题",
+              "data": {
+                "nodeType": "angle",
+                "bgColor": "#e5e7eb",
+                "borderColor": "#d1d5db",
+                "textColor": "#374151",
+                "opacity": 0.8,
+                "side": "right"
+              },
+              "children": []
+            },
+            {
+              "id": "angle_1779088263531_2jo8",
+              "label": "细节判断题",
+              "data": {
+                "nodeType": "angle",
+                "bgColor": "#e5e7eb",
+                "borderColor": "#d1d5db",
+                "textColor": "#374151",
+                "opacity": 0.8,
+                "side": "right"
+              },
+              "children": []
+            },
+            {
+              "id": "angle_1779088263531_8pez",
+              "label": "标题填入题",
+              "data": {
+                "nodeType": "angle",
+                "bgColor": "#e5e7eb",
+                "borderColor": "#d1d5db",
+                "textColor": "#374151",
+                "opacity": 0.8,
+      
+[log] [KnowledgeGraph] Component state check: {containerRefExists: true, isInitialized: true, nodesCount: 204, initAttempted: true}
+[log] [KnowledgeGraph] Not ready for initialization yet

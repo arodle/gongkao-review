@@ -30,6 +30,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<any>(null);
+  const initAttemptedRef = useRef(false);
 
   const {
     nodes, isInitialized, practiceRecords,
@@ -63,132 +64,282 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
     if (!nodes.length) return { nodes: [], edges: [] };
 
     const childrenMap = new Map<string, KnowledgeNodeRecord[]>();
-    nodes.forEach(n => {
-      if (n.parent_id) { const list = childrenMap.get(n.parent_id) || []; list.push(n); childrenMap.set(n.parent_id, list); }
+
+    nodes.forEach(node => {
+      if (node.parent_id) {
+        const list = childrenMap.get(node.parent_id) || [];
+        list.push(node);
+        childrenMap.set(node.parent_id, list);
+      }
     });
 
-    console.log('[KnowledgeGraph] nodes:', nodes.length, 'roots:', nodes.filter(n => !n.parent_id).map(n => n.name));
+    const g6Nodes: any[] = [];
+    const g6Edges: any[] = [];
 
-    function buildTreeNode(n: KnowledgeNodeRecord, depth: number, index: number): any {
-      const cached = nodeStatsCache.get(n.id);
+    function buildTree(
+      node: KnowledgeNodeRecord,
+      depth: number,
+      index: number,
+      parentSide?: string
+    ) {
+      const cached = nodeStatsCache.get(node.id);
       const hasAnswered = cached?.hasAnswered ?? false;
-      const color = focusMode ? getPSColorWithFocus(n.ps_score, focusMode, hasAnswered) : getPSColor(n.ps_score, hasAnswered);
-      const kids = (childrenMap.get(n.id) || []).map((k, i) => buildTreeNode(k, depth + 1, i));
-      const side = depth === 1 ? (index % 2 === 0 ? 'left' : 'right') : 'right';
-      return {
-        id: n.id,
-        depth,
+
+      const color = focusMode
+        ? getPSColorWithFocus(
+            node.ps_score,
+            focusMode,
+            hasAnswered
+          )
+        : getPSColor(
+            node.ps_score,
+            hasAnswered
+          );
+
+      let side = parentSide || 'right';
+
+      if (depth === 1) {
+        side =
+          index % 2 === 0
+            ? 'left'
+            : 'right';
+      }
+
+      g6Nodes.push({
+        id: node.id,
         data: {
-          label: n.name,
-          nodeType: n.node_type,
+          label: node.name,
+          nodeType: node.node_type,
           bgColor: color.background,
           borderColor: color.border,
           textColor: color.text,
           opacity: color.opacity,
           side,
         },
-        style: {
-          size: SIZE_MAP[n.node_type] ?? 30,
-          fill: color.background,
-          stroke: color.border,
-          lineWidth: 2,
-          radius: 10,
-          labelText: n.name,
-          labelFill: color.text,
-          labelFontSize: 11,
-          labelFontWeight: 600,
-          opacity: color.opacity,
-        },
-        children: kids.length > 0 ? kids : undefined,
-      };
+      });
+
+      const children =
+        childrenMap.get(node.id) || [];
+
+      children.forEach((child, i) => {
+        g6Edges.push({
+          id: `${node.id}-${child.id}`,
+          source: node.id,
+          target: child.id,
+        });
+
+        buildTree(
+          child,
+          depth + 1,
+          i,
+          side
+        );
+      });
     }
 
-    const roots = nodes.filter(n => !n.parent_id);
-    if (roots.length === 1) return buildTreeNode(roots[0], 0, 0);
+    const roots =
+      nodes.filter(
+        n => !n.parent_id
+      );
+
+    roots.forEach((root, i) => {
+      buildTree(
+        root,
+        0,
+        i
+      );
+    });
+
+    console.log(
+      '[KnowledgeGraph]',
+      {
+        nodes: g6Nodes.length,
+        edges: g6Edges.length,
+      }
+    );
 
     return {
-      id: 'virtual_root',
-      data: { side: 'right', opacity: 0, bgColor: 'transparent', borderColor: 'transparent', textColor: 'transparent', nodeType: 'root' },
-      style: { size: 1, fill: 'transparent', stroke: 'transparent', lineWidth: 0, radius: 0, opacity: 0 },
-      children: roots.map((r, i) => buildTreeNode(r, 1, i)),
+      nodes: g6Nodes,
+      edges: g6Edges,
     };
-  }, [nodes, focusMode, nodeStatsCache]);
+
+  }, [
+    nodes,
+    focusMode,
+    nodeStatsCache
+  ]);
 
   useEffect(() => {
-    if (!containerRef.current || !isInitialized || nodes.length === 0) return;
+    if (!containerRef.current || !isInitialized || nodes.length === 0 || initAttemptedRef.current) {
+      return;
+    }
+
+    initAttemptedRef.current = true;
     let mounted = true;
 
     (async () => {
-      try { if (graphRef.current) { graphRef.current.destroy(); graphRef.current = null; } } catch {}
+      try {
+        // 清理之前的图
+        if (graphRef.current) {
+          try {
+            graphRef.current.destroy();
+          } catch (e) {
+            console.warn('[KnowledgeGraph] Error destroying old graph:', e);
+          }
+          graphRef.current = null;
+        }
 
-      const { Graph } = await import('@antv/g6');
-      const nodeMap = new Map(nodes.map(n => [n.id, n]));
+        const { Graph } = await import('@antv/g6');
 
-      const graph = new Graph({
-        container: containerRef.current!,
-        data: graphData,
-        node: {
-          style: {
-            size: (d: any) => SIZE_MAP[d.data?.nodeType] ?? 30,
-            fill: (d: any) => d.data?.bgColor || '#3b82f6',
-            stroke: (d: any) => d.data?.borderColor || '#2563eb',
-            lineWidth: 2,
-            radius: 10,
-            labelText: (d: any) => d.data?.label || '',
-            labelFill: (d: any) => d.data?.textColor || '#fff',
-            labelFontSize: 11,
-            labelFontWeight: 600,
-            labelMaxWidth: 100,
-            labelWordWrap: true,
-            opacity: (d: any) => d.data?.opacity ?? 1,
-            shadowColor: 'rgba(0,0,0,0.15)',
-            shadowBlur: 6,
-            shadowOffsetY: 2,
+        const nodeMap = new Map(nodes.map(n => [n.id, n]));
+
+        // 创建图实例
+        const graph = new Graph({
+          container: containerRef.current!,
+          width: containerRef.current.clientWidth,
+          height: containerRef.current.clientHeight,
+          data: graphData,
+          node: {
+            style: {
+              size: (d: any) => SIZE_MAP[d.data?.nodeType] ?? 30,
+              fill: (d: any) => d.data?.bgColor || '#3b82f6',
+              stroke: (d: any) => d.data?.borderColor || '#2563eb',
+              lineWidth: 2,
+              radius: 10,
+              labelText: (d: any) => d.data?.label || '',
+              labelFill: (d: any) => d.data?.textColor || '#fff',
+              labelFontSize: 11,
+              labelFontWeight: 600,
+              labelMaxWidth: 100,
+              labelWordWrap: true,
+              opacity: (d: any) => d.data?.opacity ?? 1,
+              shadowColor: 'rgba(0,0,0,0.15)',
+              shadowBlur: 6,
+              shadowOffsetY: 2,
+            },
+            state: {
+              hover: { lineWidth: 3, shadowBlur: 12 },
+              selected: { lineWidth: 4, shadowBlur: 16, shadowColor: '#fbbf24' },
+            },
           },
-          state: {
-            hover: { lineWidth: 3, shadowBlur: 12 },
-            selected: { lineWidth: 4, shadowBlur: 16, shadowColor: '#fbbf24' },
+          edge: {
+            type: 'cubic-horizontal',
+            style: { stroke: '#94a3b8', lineWidth: 1.5 },
           },
-        },
-        edge: {
-          type: 'cubic-horizontal',
-          style: { stroke: '#94a3b8', lineWidth: 1.5 },
-        },
-        layout: {
-          type: 'mindmap',
-          direction: 'H',
-          getSide: (d: any) => d.data?.side || 'right',
-          getHeight: () => 44,
-          getWidth: (d: any) => {
-            const t = d.data?.nodeType; if (t === 'subject') return 140; if (t === 'knowledge') return 120; if (t === 'subknowledge') return 100; return 90;
+          layout: {
+            type: 'mindmap',
+            direction: 'H',
+            getSide: (d: any) => d.data?.side || 'right',
+            getHeight: () => 44,
+            getWidth: (d: any) => {
+              const t = d.data?.nodeType;
+              if (t === 'subject') return 150;
+              if (t === 'knowledge') return 130;
+              if (t === 'subknowledge') return 110;
+              return 90;
+            },
+            getVGap: () => 16,
+            getHGap: () => 50,
           },
-          getVGap: () => 10,
-          getHGap: () => 35,
-        },
-        behaviors: ['drag-canvas', 'zoom-canvas', 'collapse-expand'],
-        padding: 60,
-      });
+          behaviors: ['drag-canvas', 'zoom-canvas'],
+          padding: 60,
+        });
 
-      graph.on('node:click', (evt: any) => {
-        const nodeId = evt?.target?.id;
-        if (!nodeId || nodeId === 'virtual_root') return;
-        const node = nodeMap.get(nodeId);
-        if (node) { setSelectedNode(node); onNodeSelect?.(node); }
-      });
+        // 左键点击：折叠/展开
+        graph.on('node:click', (evt: any) => {
+          const nodeId = evt?.target?.id;
+          if (!nodeId) return;
 
-      graph.on('afterrender', () => { if (mounted) graph.fitView(); });
+          const node = nodeMap.get(nodeId);
+          if (!node) return;
 
-      graphRef.current = graph;
-      setIsReady(true);
+          // 点击高亮反馈
+          graph.setElementState(nodeId, ['selected']);
+          setTimeout(() => {
+            graph.setElementState(nodeId, []);
+          }, 300);
+
+          // ===== 折叠逻辑 =====
+          const getAllChildren = (
+            parentId: string,
+            result: string[] = []
+          ) => {
+            const childEdges = graphData.edges.filter(
+              e => e.source === parentId
+            );
+
+            childEdges.forEach(e => {
+              result.push(e.target);
+              getAllChildren(e.target, result);
+            });
+
+            return result;
+          };
+
+          const allChildIds = getAllChildren(nodeId);
+
+          if (!allChildIds.length) return;
+
+          const hidden = graph.getElementVisibility(allChildIds[0]);
+          const nextState = hidden === 'hidden' ? 'visible' : 'hidden';
+
+          allChildIds.forEach(id => {
+            graph.setElementVisibility(id, nextState);
+          });
+
+          graphData.edges.forEach(e => {
+            if (allChildIds.includes(e.target)) {
+              graph.setElementVisibility(e.id, nextState);
+            }
+          });
+        });
+
+        // 右键点击：显示详情
+        graph.on('node:contextmenu', (evt: any) => {
+          // 阻止默认右键菜单
+          evt.preventDefault?.();
+
+          const nodeId = evt?.target?.id;
+          if (!nodeId) return;
+
+          const node = nodeMap.get(nodeId);
+          if (!node) return;
+
+          setSelectedNode(node);
+          onNodeSelect?.(node);
+        });
+
+        // 渲染图
+        await graph.render();
+
+        // 使用 requestAnimationFrame 确保 DOM 更新完成后再适配视图
+        requestAnimationFrame(() => {
+          graph.fitView({
+            padding: 80,
+          });
+        });
+
+        graphRef.current = graph;
+        setIsReady(true);
+        console.log('[KnowledgeGraph] Graph initialization complete');
+      } catch (error) {
+        console.error('[KnowledgeGraph] Error during initialization:', error);
+        // 重置标志，允许重试
+        initAttemptedRef.current = false;
+      }
     })();
 
-    return () => { mounted = false; try { graphRef.current?.destroy(); } catch {} };
-  }, [isInitialized, nodes.length]);
-
-  useEffect(() => {
-    if (!graphRef.current || !isReady) return;
-    try { graphRef.current.setData(graphData); graphRef.current.render(); graphRef.current.fitView(); } catch {}
-  }, [graphData, isReady]);
+    return () => { 
+      mounted = false; 
+      try { 
+        if (graphRef.current) {
+          graphRef.current.destroy();
+        }
+      } catch (e) {
+        console.warn('[KnowledgeGraph] Cleanup error:', e);
+      }
+    };
+  }, [isInitialized, nodes.length, graphData, onNodeSelect]);
 
   const handleZoomIn  = useCallback(() => { try { graphRef.current?.zoomTo((graphRef.current.getZoom() || 1) * 1.2); } catch {} }, []);
   const handleZoomOut = useCallback(() => { try { graphRef.current?.zoomTo((graphRef.current.getZoom() || 1) / 1.2); } catch {} }, []);
