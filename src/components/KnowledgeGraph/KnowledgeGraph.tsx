@@ -170,7 +170,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
   ]);
 
   useEffect(() => {
-    if (!containerRef.current || !isInitialized || nodes.length === 0 || initAttemptedRef.current) {
+    if (!containerRef.current || !isInitialized || nodes.length === 0) {
       return;
     }
 
@@ -189,6 +189,11 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
           graphRef.current = null;
         }
 
+        // 清空容器内所有子元素，防止重复渲染
+        while (containerRef.current!.firstChild) {
+          containerRef.current!.removeChild(containerRef.current!.firstChild);
+        }
+
         const { Graph } = await import('@antv/g6');
 
         const nodeMap = new Map(nodes.map(n => [n.id, n]));
@@ -196,8 +201,8 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
         // 创建图实例
         const graph = new Graph({
           container: containerRef.current!,
-          width: containerRef.current.clientWidth,
-          height: containerRef.current.clientHeight,
+          width: containerRef.current!.clientWidth,
+          height: containerRef.current!.clientHeight,
           data: graphData,
           node: {
             style: {
@@ -314,9 +319,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
 
         // 使用 requestAnimationFrame 确保 DOM 更新完成后再适配视图
         requestAnimationFrame(() => {
-          graph.fitView({
-            padding: 80,
-          });
+          graph.fitView();
         });
 
         graphRef.current = graph;
