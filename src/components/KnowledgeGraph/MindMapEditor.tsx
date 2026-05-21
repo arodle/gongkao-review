@@ -50,6 +50,7 @@ import {
   ChevronRight,
   ChevronLeft,
   ChevronRightIcon,
+  ChevronUp,
   Search,
   Pin,
   ZoomIn,
@@ -133,7 +134,7 @@ function NodeTreeItem({
         )}
         style={{ paddingLeft: `${level * 20 + 8}px` }}
         onClick={() => onSelect(node)}
-        onContextMenu={(e: React.MouseEvent) => {
+        onContextMenu={(e) => {
           e.preventDefault();
           onSelect(node);
         }}
@@ -266,11 +267,11 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [addParentId, setAddParentId] = useState<string | null>(null);
-  const [sidebarWidth, setSidebarWidth] = useState(320);
   const [editForm, setEditForm] = useState({
     name: '',
     content: '',
     annotation: '',
+    parent_id: '',
   });
   const [addForm, setAddForm] = useState({
     name: '',
@@ -278,6 +279,41 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
   });
   const [showSidebar, setShowSidebar] = useState(true);
   const [showOnlyWeak, setShowOnlyWeak] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(320);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isQuestionsExpanded, setIsQuestionsExpanded] = useState(false);
+  const [expandedQuestionId, setExpandedQuestionId] = useState<string | null>(null);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      const newWidth = Math.max(200, Math.min(600, e.clientX));
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isDragging]);
 
   useEffect(() => {
     if (nodes.length > 0 && expandedNodes.size === 0) {
@@ -355,73 +391,97 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
       name: node.name,
       content: node.content || '',
       annotation: node.annotation || '',
+      parent_id: node.parent_id || '',
     });
     setShowEditDialog(true);
   }, []);
 
   const handleAddChild = useCallback((parentId: string) => {
+    const parentNode = parentId ? nodes.find(n => n.id === parentId) : null;
+    const nextType: 'subject' | 'knowledge' | 'subknowledge' | 'angle' =
+      !parentNode ? 'knowledge' :
+      parentNode.node_type === 'subject' ? 'knowledge' :
+      parentNode.node_type === 'knowledge' ? 'subknowledge' :
+      parentNode.node_type === 'subknowledge' ? 'angle' :
+      'angle';
     setAddParentId(parentId);
     setAddForm({
       name: '',
-      type: 'subknowledge',
+      type: nextType,
     });
     setShowAddDialog(true);
-  }, []);
+  }, [nodes]);
 
-  const handleSaveEdit = async () => {
-    if (!editingNode) {
-      console.log('没有正在编辑的节点');
-      return;
+  const handleSaveEdit = useCallback(() => {
+    if (!editingNode) return;
+    const newParentId = editForm.parent_id || null;
+    useAppStore.getState().updateNode({
+      id: editingNode.id,
+      name: editForm.name,
+      content: editForm.content || undefined,
+      annotation: editForm.annotation || undefined,
+      parent_id: newParentId,
+    });
+
+    const annotationChanged = editForm.annotation !== (editingNode.annotation || '');
+    console.log('[MindMapEditor] handleSaveEdit:', {
+      nodeId: editingNode.id,
+      nodeName: editingNode.name,
+      annotationChanged,
+      hasAnnotation: !!editForm.annotation,
+      annotationLen: editForm.annotation?.length || 0,
+    });
+    if (annotationChanged && editForm.annotation) {
+      try {
+        const parts: string[] = [];
+        let current: KnowledgeNodeRecord | undefined = nodes.find(n => n.id === editingNode.id);
+        while (current) {
+          const c = current;
+          parts.unshift(c.name);
+          current = c.parent_id ? nodes.find(n => n.id === c.parent_id) : undefined;
+        }
+        const fullPath = parts.join(' > ');
+        console.log('[MindMapEditor] syncing annotation to study_notes:', {
+          path: fullPath,
+          nodeId: editingNode.id,
+          title: `${editingNode.name} - 学习笔记`,
+        });
+        useAppStore.getState().addStudyNote({
+          id: `note_node_${editingNode.id}`,
+          user_id: 'default_user',
+          title: `${editingNode.name} - 学习笔记`,
+          content: editForm.annotation,
+          linked_node_id: editingNode.id,
+          linked_node_name: fullPath,
+          tags: [editingNode.node_type],
+          color_tag: 'default',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error('[MindMapEditor] failed to sync annotation to study_notes:', err);
+      }
     }
 
-    try {
-      console.log('开始保存节点:', editingNode.id, editForm);
-      // 调用 Neon 数据库的更新函数
-      const { updateNode } = await import('@/lib/db/neon-service');
-      await updateNode(editingNode.id, {
-        name: editForm.name,
-        content: editForm.content || undefined,
-        annotation: editForm.annotation || undefined,
-      });
-
-      console.log('Neon 数据库更新成功');
-      await useAppStore.getState().initialize();
-      console.log('数据重新加载成功');
-      setShowEditDialog(false);
-      setEditingNode(null);
-      alert('保存成功！');
-    } catch (error) {
-      console.error('保存失败:', error);
-      alert('保存失败，请检查控制台');
-    }
-  };
+    setShowEditDialog(false);
+    setEditingNode(null);
+  }, [editingNode, editForm, nodes]);
 
   const handleSaveAdd = useCallback(async () => {
     if (!addForm.name.trim()) return;
 
     try {
-      const { upsertNode } = await import('@/lib/db/neon-service');
-      const { CURRENT_USER_ID } = await import('@/lib/db/database');
       const parentNode = addParentId ? nodes.find(n => n.id === addParentId) : null;
+      const siblingCount = nodes.filter(n => n.parent_id === addParentId).length;
 
-      const newNode = {
+      useAppStore.getState().addNode({
         id: `${addForm.type}_${Date.now()}`,
-        user_id: CURRENT_USER_ID,
         name: addForm.name,
-        parent_id: addParentId || null,
+        parent_id: addParentId,
         pos_x: parentNode ? parentNode.pos_x + 200 : 0,
-        pos_y: parentNode ? parentNode.pos_y + 100 : 0,
-        ps_score: 50,
-        last_practiced_at: null,
-        color_tag: 'default',
+        pos_y: parentNode ? parentNode.pos_y + siblingCount * 60 : 0,
         node_type: addForm.type,
-        content: null,
-        annotation: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      await upsertNode(newNode as any);
+      });
 
       await createSafetySnapshot('添加节点');
 
@@ -429,7 +489,6 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
         setExpandedNodes(prev => new Set([...prev, addParentId]));
       }
 
-      await useAppStore.getState().initialize();
       setShowAddDialog(false);
       setAddParentId(null);
     } catch (error) {
@@ -442,18 +501,15 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
 
     try {
       await createSafetySnapshot('删除节点');
+      useAppStore.getState().deleteNode(nodeId);
 
-      const { deleteNode } = await import('@/lib/db/neon-service');
-      await deleteNode(nodeId);
-      await useAppStore.getState().initialize();
-
-      if (selectedNode && nodes.some(n => n.id === nodeId || n.parent_id === nodeId)) {
+      if (selectedNode?.id === nodeId) {
         setSelectedNode(null);
       }
     } catch (error) {
       console.error('Failed to delete node:', error);
     }
-  }, [nodes, selectedNode, createSafetySnapshot]);
+  }, [selectedNode, createSafetySnapshot]);
 
   const handleCopyNode = useCallback(async (node: KnowledgeNodeRecord) => {
     setAddForm({
@@ -491,58 +547,18 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
     );
   }
 
-  const [isDragging, setIsDragging] = useState(false);
-
-  const handleMouseDown = useCallback(() => {
-    setIsDragging(true);
-  }, []);
-
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging || !showSidebar) return;
-    const container = document.querySelector('.mindmap-editor-container');
-    if (!container) return;
-    const containerRect = container.getBoundingClientRect();
-    const newWidth = e.clientX - containerRect.left;
-    setSidebarWidth(Math.max(200, Math.min(500, newWidth)));
-  }, [isDragging, showSidebar]);
-
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
-
-  useEffect(() => {
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-    }
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isDragging, handleMouseMove, handleMouseUp]);
-
-  if (!isInitialized) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="animate-spin">
-          <RefreshCw className="h-6 w-6" />
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className={cn('flex h-full mindmap-editor-container', className)}>
+    <div className={cn('flex h-full', className)}>
       <AnimatePresence>
         {showSidebar && (
-          <>
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: sidebarWidth, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="border-r bg-background flex flex-col h-full"
-            >
+          <motion.div
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: sidebarWidth, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="border-r bg-background flex flex-col overflow-hidden relative"
+            style={{ width: sidebarWidth }}
+          >
             <div className="p-3 border-b space-y-2">
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -579,7 +595,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
               </div>
             </div>
 
-            <ScrollArea className="flex-1 h-0 min-h-0">
+            <ScrollArea className="h-0 flex-1 min-h-0">
               <div className="p-2">
                 {rootNodes.map((node) => (
                   <NodeTreeItem
@@ -601,22 +617,22 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
                 ))}
               </div>
             </ScrollArea>
-            </motion.div>
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: 4 }}
-              exit={{ width: 0 }}
-              className="bg-border hover:bg-muted cursor-col-resize flex flex-col items-center justify-center group"
-              onMouseDown={handleMouseDown}
-            >
-              <div className="w-1 h-8 bg-muted-foreground/30 rounded-full group-hover:bg-muted-foreground/50 transition-colors" />
-            </motion.div>
-          </>
+          </motion.div>
         )}
       </AnimatePresence>
 
-      <div className="flex-1 flex flex-col">
-        <div className="p-3 border-b flex items-center justify-between">
+      {showSidebar && (
+        <div
+          className={cn(
+            'w-1 cursor-col-resize hover:bg-primary/30 transition-colors flex-shrink-0',
+            isDragging && 'bg-primary'
+          )}
+          onMouseDown={handleMouseDown}
+        />
+      )}
+
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="p-3 border-b flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
@@ -635,7 +651,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
           </div>
         </div>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="h-0 flex-1 min-h-0">
           <div className="p-6">
             {selectedNode ? (
               <div className="max-w-3xl mx-auto space-y-6">
@@ -662,6 +678,14 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
                         >
                           <FolderPlus className="h-4 w-4 mr-1" />
                           添加子节点
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteNode(selectedNode.id)}
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          删除
                         </Button>
                       </div>
                     </div>
@@ -714,26 +738,143 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
                 {nodeQuestions.length > 0 && (
                   <Card>
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <FileText className="h-5 w-5" />
-                        相关题目 ({nodeQuestions.length})
-                      </CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <FileText className="h-5 w-5" />
+                          相关题目 ({nodeQuestions.length})
+                        </CardTitle>
+                        {nodeQuestions.length > 5 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setIsQuestionsExpanded(!isQuestionsExpanded)}
+                            className="text-xs"
+                          >
+                            {isQuestionsExpanded ? (
+                              <>
+                                <ChevronUp className="h-3 w-3 mr-1" />
+                                收起
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="h-3 w-3 mr-1" />
+                                展开全部
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
-                        {nodeQuestions.slice(0, 5).map((q) => (
+                        {(isQuestionsExpanded ? nodeQuestions : nodeQuestions.slice(0, 5)).map((q) => (
                           <div
                             key={q.id}
-                            className="p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
+                            className={cn(
+                              "rounded-lg border transition-colors",
+                              expandedQuestionId === q.id 
+                                ? "bg-card border-primary" 
+                                : "bg-muted/50 hover:bg-muted cursor-pointer"
+                            )}
+                            onClick={() => setExpandedQuestionId(expandedQuestionId === q.id ? null : q.id)}
                           >
-                            <p className="text-sm line-clamp-2">{q.content}</p>
-                            <div className="mt-2 flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">
-                                {(q.knowledgePath || '').split('/').pop()}
-                              </Badge>
+                            <div className="p-3">
+                              <div className="flex items-start justify-between gap-2">
+                                <p className={cn(
+                                  "text-sm flex-1",
+                                  expandedQuestionId !== q.id && "line-clamp-2"
+                                )}>
+                                  {q.content}
+                                </p>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 shrink-0"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedQuestionId(expandedQuestionId === q.id ? null : q.id);
+                                  }}
+                                >
+                                  {expandedQuestionId === q.id ? (
+                                    <ChevronUp className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </div>
+                              
+                              {expandedQuestionId === q.id && (
+                                <div className="mt-4 space-y-3">
+                                  {q.options && q.options.length > 0 && (
+                                     <div className="space-y-2">
+                                       <h4 className="text-sm font-medium text-muted-foreground">选项</h4>
+                                       {q.options.map((opt, idx) => (
+                                         <div 
+                                           key={idx}
+                                           className={cn(
+                                             "p-2 rounded-md text-sm",
+                                             q.correctAnswer === opt.label
+                                               ? "bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800" 
+                                               : "bg-muted/50"
+                                           )}
+                                         >
+                                           <span className="font-medium mr-2">{opt.label}.</span>
+                                           {opt.text}
+                                         </div>
+                                       ))}
+                                     </div>
+                                   )}
+                                  
+                                  {q.explanation && (
+                                    <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                                      <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">解析</h4>
+                                      <p className="text-sm text-blue-700 dark:text-blue-300">{q.explanation}</p>
+                                    </div>
+                                  )}
+                                  
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {q.knowledgePath && (
+                                      <Badge variant="outline" className="text-xs">
+                                        {(q.knowledgePath || '').split('/').pop()}
+                                      </Badge>
+                                    )}
+                                    {q.source && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        {q.source}
+                                      </Badge>
+                                    )}
+                                    {q.type && (
+                                      <Badge 
+                                        variant={q.type === 'real' ? 'default' : 'outline'}
+                                        className="text-xs"
+                                      >
+                                        {q.type === 'real' ? '真题' : '模拟题'}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {expandedQuestionId !== q.id && (
+                                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                  <Badge variant="outline" className="text-xs">
+                                    {(q.knowledgePath || '').split('/').pop()}
+                                  </Badge>
+                                  {q.options && q.options.length > 0 && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      {q.options.length} 个选项
+                                    </Badge>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         ))}
+                        {!isQuestionsExpanded && nodeQuestions.length > 5 && (
+                          <div className="text-center text-sm text-muted-foreground py-2">
+                            还有 {nodeQuestions.length - 5} 道题目，点击"展开全部"查看更多
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -753,62 +894,75 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
       </div>
 
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        {showEditDialog && <>{console.log('对话框已打开, editingNode:', editingNode, 'editForm:', editForm)}</>}
-        <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>编辑节点</DialogTitle>
           </DialogHeader>
-          <ScrollArea className="flex-1">
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">节点名称</label>
-                <Input
-                  value={editForm.name}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="输入节点名称"
-                />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium">内容说明</label>
-                  <span className="text-xs text-muted-foreground">{editForm.content.length} 字</span>
-                </div>
-                <Textarea
-                  value={editForm.content}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, content: e.target.value }))}
-                  placeholder="输入内容说明（可选）"
-                  rows={4}
-                  className="resize-none max-h-40"
-                />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium">学习笔记</label>
-                  <span className="text-xs text-muted-foreground">{editForm.annotation.length} 字</span>
-                </div>
-                <Textarea
-                  value={editForm.annotation}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, annotation: e.target.value }))}
-                  placeholder="输入学习笔记（可选）"
-                  rows={3}
-                  className="resize-none max-h-32"
-                />
-              </div>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">节点名称</label>
+              <Input
+                value={editForm.name}
+                onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="输入节点名称"
+              />
             </div>
-          </ScrollArea>
-          <DialogFooter className="border-t">
-            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
-              取消
-            </Button>
-            <Button 
-              type="button"
+            <div className="space-y-2">
+              <label className="text-sm font-medium">父节点（移动节点到其他位置）</label>
+              <select
+                value={editForm.parent_id}
+                onChange={(e) => setEditForm(prev => ({ ...prev, parent_id: e.target.value }))}
+                className="w-full border rounded px-2 py-1.5 text-sm"
+              >
+                <option value="">根节点（无父节点）</option>
+                {nodes
+                  .filter(n => n.id !== editingNode?.id)
+                  .filter(n => n.node_type !== 'angle')
+                  .map(n => (
+                    <option key={n.id} value={n.id}>{getNodePath(n.id)}</option>
+                  ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">内容说明</label>
+              <Textarea
+                value={editForm.content}
+                onChange={(e) => setEditForm(prev => ({ ...prev, content: e.target.value }))}
+                placeholder="输入内容说明（可选）"
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">学习笔记</label>
+              <Textarea
+                value={editForm.annotation}
+                onChange={(e) => setEditForm(prev => ({ ...prev, annotation: e.target.value }))}
+                placeholder="输入学习笔记（可选）"
+                rows={2}
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex justify-between">
+            <Button
+              variant="destructive"
+              size="sm"
               onClick={() => {
-                console.log('保存按钮被点击了');
-                handleSaveEdit();
+                if (confirm('确定删除该节点？子节点也将被删除。')) {
+                  useAppStore.getState().deleteNode(editingNode!.id);
+                  setShowEditDialog(false);
+                  setEditingNode(null);
+                }
               }}
             >
-              保存
+              <Trash2 className="h-4 w-4 mr-1" />
+              删除
             </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+                取消
+              </Button>
+              <Button onClick={handleSaveEdit}>保存</Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

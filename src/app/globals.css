@@ -135,13 +135,3 @@
 body {
   @apply font-sans;
 }
-
-/* 隐藏滚动条但保持滚动功能 */
-.hide-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
-}

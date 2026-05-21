@@ -36,10 +36,6 @@ function InputOTPGroup({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-interface OTPInputContextValue {
-  slots: Array<{ char: string | undefined; hasFakeCaret: boolean; isActive: boolean }>
-}
-
 function InputOTPSlot({
   index,
   className,
@@ -47,7 +43,7 @@ function InputOTPSlot({
 }: React.ComponentProps<"div"> & {
   index: number
 }) {
-  const inputOTPContext = React.useContext(OTPInputContext) as OTPInputContextValue | null
+  const inputOTPContext = React.useContext(OTPInputContext)
   const { char, hasFakeCaret, isActive } = inputOTPContext?.slots[index] ?? {}
 
   return (
