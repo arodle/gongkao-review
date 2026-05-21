@@ -400,24 +400,28 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
     if (!addForm.name.trim()) return;
 
     try {
-      const { db, CURRENT_USER_ID } = await import('@/lib/db/database');
+      const { upsertNode } = await import('@/lib/db/neon-service');
+      const { CURRENT_USER_ID } = await import('@/lib/db/database');
       const parentNode = addParentId ? nodes.find(n => n.id === addParentId) : null;
 
-      const newNode: KnowledgeNodeRecord = {
+      const newNode = {
         id: `${addForm.type}_${Date.now()}`,
         user_id: CURRENT_USER_ID,
         name: addForm.name,
-        parent_id: addParentId,
+        parent_id: addParentId || null,
         pos_x: parentNode ? parentNode.pos_x + 200 : 0,
         pos_y: parentNode ? parentNode.pos_y + 100 : 0,
         ps_score: 50,
         last_practiced_at: null,
         color_tag: 'default',
         node_type: addForm.type,
+        content: null,
+        annotation: null,
+        created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
-      await db.knowledge_nodes.add(newNode);
+      await upsertNode(newNode as any);
 
       await createSafetySnapshot('添加节点');
 
@@ -439,19 +443,11 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
     try {
       await createSafetySnapshot('删除节点');
 
-      const { db } = await import('@/lib/db/database');
-      const toDelete = new Set<string>();
-
-      const collectChildren = (id: string) => {
-        toDelete.add(id);
-        nodes.filter(n => n.parent_id === id).forEach(n => collectChildren(n.id));
-      };
-      collectChildren(nodeId);
-
-      await db.knowledge_nodes.bulkDelete(Array.from(toDelete));
+      const { deleteNode } = await import('@/lib/db/neon-service');
+      await deleteNode(nodeId);
       await useAppStore.getState().initialize();
 
-      if (selectedNode && toDelete.has(selectedNode.id)) {
+      if (selectedNode && nodes.some(n => n.id === nodeId || n.parent_id === nodeId)) {
         setSelectedNode(null);
       }
     } catch (error) {
@@ -757,7 +753,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
       </div>
 
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        {showEditDialog && console.log('对话框已打开, editingNode:', editingNode, 'editForm:', editForm)}
+        {showEditDialog && <>{console.log('对话框已打开, editingNode:', editingNode, 'editForm:', editForm)}</>}
         <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>编辑节点</DialogTitle>
