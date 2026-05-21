@@ -757,6 +757,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
       </div>
 
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        {showEditDialog && console.log('对话框已打开, editingNode:', editingNode, 'editForm:', editForm)}
         <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>编辑节点</DialogTitle>
@@ -803,7 +804,15 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
               取消
             </Button>
-            <Button onClick={handleSaveEdit}>保存</Button>
+            <Button 
+              type="button"
+              onClick={() => {
+                console.log('保存按钮被点击了');
+                handleSaveEdit();
+              }}
+            >
+              保存
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
