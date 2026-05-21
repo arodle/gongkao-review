@@ -537,7 +537,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
               animate={{ width: sidebarWidth, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="border-r bg-background flex flex-col"
+              className="border-r bg-background flex flex-col h-full"
             >
             <div className="p-3 border-b space-y-2">
               <div className="flex items-center gap-2">
@@ -764,28 +764,30 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">内容说明</label>
-                <ScrollArea className="max-h-40">
-                  <Textarea
-                    value={editForm.content}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, content: e.target.value }))}
-                    placeholder="输入内容说明（可选）"
-                    rows={4}
-                    className="resize-none"
-                  />
-                </ScrollArea>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">内容说明</label>
+                  <span className="text-xs text-muted-foreground">{editForm.content.length} 字</span>
+                </div>
+                <Textarea
+                  value={editForm.content}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, content: e.target.value }))}
+                  placeholder="输入内容说明（可选）"
+                  rows={4}
+                  className="resize-none max-h-40"
+                />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">学习笔记</label>
-                <ScrollArea className="max-h-32">
-                  <Textarea
-                    value={editForm.annotation}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, annotation: e.target.value }))}
-                    placeholder="输入学习笔记（可选）"
-                    rows={3}
-                    className="resize-none"
-                  />
-                </ScrollArea>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">学习笔记</label>
+                  <span className="text-xs text-muted-foreground">{editForm.annotation.length} 字</span>
+                </div>
+                <Textarea
+                  value={editForm.annotation}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, annotation: e.target.value }))}
+                  placeholder="输入学习笔记（可选）"
+                  rows={3}
+                  className="resize-none max-h-32"
+                />
               </div>
             </div>
           </ScrollArea>
