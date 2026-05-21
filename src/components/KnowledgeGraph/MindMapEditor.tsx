@@ -266,6 +266,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [addParentId, setAddParentId] = useState<string | null>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(320);
   const [editForm, setEditForm] = useState({
     name: '',
     content: '',
@@ -486,17 +487,58 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
     );
   }
 
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleMouseDown = useCallback(() => {
+    setIsDragging(true);
+  }, []);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isDragging || !showSidebar) return;
+    const container = document.querySelector('.mindmap-editor-container');
+    if (!container) return;
+    const containerRect = container.getBoundingClientRect();
+    const newWidth = e.clientX - containerRect.left;
+    setSidebarWidth(Math.max(200, Math.min(500, newWidth)));
+  }, [isDragging, showSidebar]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, handleMouseMove, handleMouseUp]);
+
+  if (!isInitialized) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin">
+          <RefreshCw className="h-6 w-6" />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={cn('flex h-full', className)}>
+    <div className={cn('flex h-full mindmap-editor-container', className)}>
       <AnimatePresence>
         {showSidebar && (
-          <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 320, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="border-r bg-background flex flex-col"
-          >
+          <>
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: sidebarWidth, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="border-r bg-background flex flex-col"
+            >
             <div className="p-3 border-b space-y-2">
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -555,7 +597,17 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
                 ))}
               </div>
             </ScrollArea>
-          </motion.div>
+            </motion.div>
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: 4 }}
+              exit={{ width: 0 }}
+              className="bg-border hover:bg-muted cursor-col-resize flex flex-col items-center justify-center group"
+              onMouseDown={handleMouseDown}
+            >
+              <div className="w-1 h-8 bg-muted-foreground/30 rounded-full group-hover:bg-muted-foreground/50 transition-colors" />
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
@@ -697,39 +749,47 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
       </div>
 
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>编辑节点</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">节点名称</label>
-              <Input
-                value={editForm.name}
-                onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="输入节点名称"
-              />
+          <ScrollArea className="flex-1">
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">节点名称</label>
+                <Input
+                  value={editForm.name}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="输入节点名称"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">内容说明</label>
+                <ScrollArea className="max-h-40">
+                  <Textarea
+                    value={editForm.content}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, content: e.target.value }))}
+                    placeholder="输入内容说明（可选）"
+                    rows={4}
+                    className="resize-none"
+                  />
+                </ScrollArea>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">学习笔记</label>
+                <ScrollArea className="max-h-32">
+                  <Textarea
+                    value={editForm.annotation}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, annotation: e.target.value }))}
+                    placeholder="输入学习笔记（可选）"
+                    rows={3}
+                    className="resize-none"
+                  />
+                </ScrollArea>
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">内容说明</label>
-              <Textarea
-                value={editForm.content}
-                onChange={(e) => setEditForm(prev => ({ ...prev, content: e.target.value }))}
-                placeholder="输入内容说明（可选）"
-                rows={3}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">学习笔记</label>
-              <Textarea
-                value={editForm.annotation}
-                onChange={(e) => setEditForm(prev => ({ ...prev, annotation: e.target.value }))}
-                placeholder="输入学习笔记（可选）"
-                rows={2}
-              />
-            </div>
-          </div>
-          <DialogFooter>
+          </ScrollArea>
+          <DialogFooter className="border-t">
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
               取消
             </Button>
