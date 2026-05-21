@@ -1117,7 +1117,7 @@ export function QuestionBankManager() {
               animate={{ scale: 1 }}
               exit={{ scale: 0.8 }}
               className="relative max-w-[90vw] max-h-[90vh]"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
             >
               <img
                 src={previewImage}

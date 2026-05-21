@@ -356,6 +356,15 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
     const node = nodes.find(n => n.id === editingAnnotation);
     if (!node) return;
     useAppStore.getState().updateNode({ id: editingAnnotation, annotation: annotationDraft || undefined });
+    
+    // 即时更新 selectedNode 的 annotation，让界面立即显示
+    if (selectedNode && selectedNode.id === editingAnnotation) {
+      setSelectedNode({
+        ...selectedNode,
+        annotation: annotationDraft || undefined,
+      });
+    }
+    
     if (annotationDraft && annotationDraft !== (node.annotation || '')) {
       try {
         const parts: string[] = [];
@@ -371,7 +380,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
       } catch (err) { console.error('[KG] sync annotation failed:', err); }
     }
     setEditingAnnotation(null); setAnnotationDraft('');
-  }, [editingAnnotation, annotationDraft, nodes]);
+  }, [editingAnnotation, annotationDraft, nodes, selectedNode]);
 
   const selectedNodeStats = useMemo(() => selectedNode ? getNodeStats(selectedNode.id) : null, [selectedNode, getNodeStats]);
 
@@ -433,35 +442,45 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
 
         {selectedNode && (
           <Sheet open={!!selectedNode} onOpenChange={(open) => !open && setSelectedNode(null)}>
-            <SheetContent className="w-[400px] sm:w-[540px]">
-              <SheetHeader>
+            <SheetContent className="w-[400px] sm:w-[540px] h-[80vh] flex flex-col">
+              <SheetHeader className="flex-shrink-0">
                 <SheetTitle className="flex items-center gap-2">
                   <span>{selectedNode.name}</span>
                   <Badge variant="outline" style={{ backgroundColor: getPSColor(selectedNode.ps_score, hasNodeAnswered(selectedNode.id)).background, color: getPSColor(selectedNode.ps_score, hasNodeAnswered(selectedNode.id)).text }}>PS: {selectedNode.ps_score}</Badge>
                   {selectedNode.node_type === 'angle' && getNodeWrongCount(selectedNode.id) > 0 && <Badge variant="destructive" className="text-[10px]">×{getNodeWrongCount(selectedNode.id)}</Badge>}
                 </SheetTitle>
               </SheetHeader>
-              <div className="mt-6 space-y-6">
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium">掌握进度</h4>
-                  <Progress value={(selectedNode.ps_score / 200) * 100} className="h-2" style={{ '--progress-foreground': getPSColor(selectedNode.ps_score, hasNodeAnswered(selectedNode.id)).background } as React.CSSProperties} />
-                  <p className="text-xs text-muted-foreground">{!hasNodeAnswered(selectedNode.id) ? '未作答' : selectedNode.ps_score < 80 ? '需要加强' : selectedNode.ps_score < 150 ? '持续练习中' : '已熟练'}</p>
-                </div>
-                {selectedNode.content && <div className="space-y-2"><h4 className="text-sm font-medium">知识点说明</h4><p className="text-sm text-muted-foreground leading-relaxed">{selectedNode.content}</p></div>}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between"><h4 className="text-sm font-medium">学习笔记</h4>{editingAnnotation !== selectedNode.id && <Button variant="ghost" size="sm" onClick={() => handleStartEditAnnotation(selectedNode)}><Edit3 className="h-3 w-3 mr-1" />{selectedNode.annotation ? '编辑' : '添加笔记'}</Button>}</div>
-                  {editingAnnotation === selectedNode.id ? (
-                    <div className="space-y-2"><Textarea value={annotationDraft} onChange={e => setAnnotationDraft(e.target.value)} placeholder="输入学习笔记..." rows={4} autoFocus /><div className="flex gap-2"><Button size="sm" onClick={handleSaveAnnotation}><Check className="h-3 w-3 mr-1" />保存</Button><Button size="sm" variant="outline" onClick={() => { setEditingAnnotation(null); setAnnotationDraft(''); }}><X className="h-3 w-3 mr-1" />取消</Button></div></div>
-                  ) : selectedNode.annotation ? <p className="text-sm text-amber-600 dark:text-amber-400 italic">{selectedNode.annotation}</p> : <p className="text-sm text-muted-foreground italic">暂无笔记</p>}
-                </div>
-                {selectedNodeStats && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"><div className="text-2xl font-bold text-green-600 dark:text-green-400">{selectedNodeStats.correct}</div><div className="text-xs text-green-600/70">正确次数</div></div>
-                    <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"><div className="text-2xl font-bold text-red-600 dark:text-red-400">{selectedNodeStats.wrong}</div><div className="text-xs text-red-600/70">错误次数</div></div>
+              <ScrollArea className="flex-1 min-h-0">
+                <div className="space-y-6 pr-4">
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">掌握进度</h4>
+                    <Progress value={(selectedNode.ps_score / 200) * 100} className="h-2" style={{ '--progress-foreground': getPSColor(selectedNode.ps_score, hasNodeAnswered(selectedNode.id)).background } as React.CSSProperties} />
+                    <p className="text-xs text-muted-foreground">{!hasNodeAnswered(selectedNode.id) ? '未作答' : selectedNode.ps_score < 80 ? '需要加强' : selectedNode.ps_score < 150 ? '持续练习中' : '已熟练'}</p>
                   </div>
-                )}
-                <div className="pt-2 border-t"><Button className="w-full" onClick={() => { onTargetedPractice?.(selectedNode.id); setSelectedNode(null); }}><Target className="h-4 w-4 mr-2" />靶向练习</Button></div>
-              </div>
+                  {selectedNode.content && <div className="space-y-2"><h4 className="text-sm font-medium">知识点说明</h4><p className="text-sm text-muted-foreground leading-relaxed">{selectedNode.content}</p></div>}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-medium">学习笔记</h4>
+                      {editingAnnotation !== selectedNode.id && (
+                        <Button variant="ghost" size="sm" onClick={() => handleStartEditAnnotation(selectedNode)}>
+                          <Edit3 className="h-3 w-3 mr-1" />
+                          {selectedNode.annotation ? '编辑' : '添加笔记'}
+                        </Button>
+                      )}
+                    </div>
+                    {editingAnnotation === selectedNode.id ? (
+                      <div className="space-y-2"><Textarea value={annotationDraft} onChange={e => setAnnotationDraft(e.target.value)} placeholder="输入学习笔记..." rows={4} autoFocus className="max-h-48" /><div className="flex gap-2"><Button size="sm" onClick={handleSaveAnnotation}><Check className="h-3 w-3 mr-1" />保存</Button><Button size="sm" variant="outline" onClick={() => { setEditingAnnotation(null); setAnnotationDraft(''); }}><X className="h-3 w-3 mr-1" />取消</Button></div></div>
+                    ) : selectedNode.annotation ? <p className="text-sm text-amber-600 dark:text-amber-400 italic whitespace-pre-wrap">{selectedNode.annotation}</p> : <p className="text-sm text-muted-foreground italic">暂无笔记</p>}
+                  </div>
+                  {selectedNodeStats && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"><div className="text-2xl font-bold text-green-600 dark:text-green-400">{selectedNodeStats.correct}</div><div className="text-xs text-green-600/70">正确次数</div></div>
+                      <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"><div className="text-2xl font-bold text-red-600 dark:text-red-400">{selectedNodeStats.wrong}</div><div className="text-xs text-red-600/70">错误次数</div></div>
+                    </div>
+                  )}
+                  <div className="pt-2 border-t"><Button className="w-full" onClick={() => { onTargetedPractice?.(selectedNode.id); setSelectedNode(null); }}><Target className="h-4 w-4 mr-2" />靶向练习</Button></div>
+                </div>
+              </ScrollArea>
             </SheetContent>
           </Sheet>
         )}
