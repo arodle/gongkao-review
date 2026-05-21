@@ -386,7 +386,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
     } catch (error) {
       console.error('Failed to update node:', error);
     }
-  }, [editingNode, editForm]);
+  }, [editingNode, editForm.name, editForm.content, editForm.annotation]);
 
   const handleSaveAdd = useCallback(async () => {
     if (!addForm.name.trim()) return;
@@ -575,7 +575,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
               </div>
             </div>
 
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 h-0 min-h-0">
               <div className="p-2">
                 {rootNodes.map((node) => (
                   <NodeTreeItem
