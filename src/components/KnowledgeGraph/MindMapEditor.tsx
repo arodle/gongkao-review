@@ -376,15 +376,15 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
 
     try {
       console.log('开始保存节点:', editingNode.id, editForm);
-      const { db } = await import('@/lib/db/database');
-      await db.knowledge_nodes.update(editingNode.id, {
+      // 调用 Neon 数据库的更新函数
+      const { updateNode } = await import('@/lib/db/neon-service');
+      await updateNode(editingNode.id, {
         name: editForm.name,
         content: editForm.content || undefined,
         annotation: editForm.annotation || undefined,
-        updated_at: new Date().toISOString(),
       });
 
-      console.log('数据库更新成功');
+      console.log('Neon 数据库更新成功');
       await useAppStore.getState().initialize();
       console.log('数据重新加载成功');
       setShowEditDialog(false);
