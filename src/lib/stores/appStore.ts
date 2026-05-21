@@ -223,56 +223,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       const { nodes: remoteNodes, practiceRecords: remoteRecords, psHistory: remoteHistory } = await fetchAllFromNeon();
 
       if (remoteNodes.length === 0) {
-        try {
-          const result = await seedInitialData();
-          const { nodes: newNodes } = await fetchAllFromNeon();
-          if (newNodes.length > 0) {
-            set({ 
-              nodes: newNodes,
-              practiceRecords: [],
-              psHistory: [],
-              questionBank: result.questionBank,
-              isInitialized: true,
-            });
-            return;
-          }
-        } catch (seedError) {
-          console.warn('Failed to seed data, falling back to sample data:', seedError);
-        }
-        
-        // 如果 seed 失败或没有数据，使用本地示例数据
-        console.log('[AppStore] Using sample data fallback');
-        const { SAMPLE_MIND_MAP } = await import('@/lib/sample-data');
-        const { SAMPLE_QUESTION_BANK } = await import('@/lib/sample-data');
-        
-        const sampleNodes: KnowledgeNodeRecord[] = [];
-        function traverseTree(node: any, parentId: string | null = null) {
-          sampleNodes.push({
-            id: node.id,
-            user_id: CURRENT_USER_ID,
-            name: node.name,
-            parent_id: parentId,
-            pos_x: 0,
-            pos_y: 0,
-            ps_score: 50,
-            last_practiced_at: null,
-            color_tag: 'default',
-            node_type: node.type,
-            content: node.content,
-            annotation: node.annotation,
-            updated_at: new Date().toISOString(),
-          });
-          if (node.children) {
-            node.children.forEach((child: any) => traverseTree(child, node.id));
-          }
-        }
-        traverseTree(SAMPLE_MIND_MAP);
-        
-        set({
-          nodes: sampleNodes,
+        const result = await seedInitialData();
+        const { nodes: newNodes } = await fetchAllFromNeon();
+        set({ 
+          nodes: newNodes,
           practiceRecords: [],
           psHistory: [],
-          questionBank: SAMPLE_QUESTION_BANK.map(q => ({ ...q, images: q.images || [] })),
+          questionBank: result.questionBank,
           isInitialized: true,
         });
         return;
@@ -299,47 +256,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
     } catch (error) {
       console.error('Failed to initialize app state:', error);
-      
-      // 数据库连接完全失败时，使用示例数据
-      console.log('[AppStore] Database connection failed, using sample data');
-      try {
-        const { SAMPLE_MIND_MAP } = await import('@/lib/sample-data');
-        const { SAMPLE_QUESTION_BANK } = await import('@/lib/sample-data');
-        
-        const sampleNodes: KnowledgeNodeRecord[] = [];
-        function traverseTree(node: any, parentId: string | null = null) {
-          sampleNodes.push({
-            id: node.id,
-            user_id: CURRENT_USER_ID,
-            name: node.name,
-            parent_id: parentId,
-            pos_x: 0,
-            pos_y: 0,
-            ps_score: 50,
-            last_practiced_at: null,
-            color_tag: 'default',
-            node_type: node.type,
-            content: node.content,
-            annotation: node.annotation,
-            updated_at: new Date().toISOString(),
-          });
-          if (node.children) {
-            node.children.forEach((child: any) => traverseTree(child, node.id));
-          }
-        }
-        traverseTree(SAMPLE_MIND_MAP);
-        
-        set({
-          nodes: sampleNodes,
-          practiceRecords: [],
-          psHistory: [],
-          questionBank: SAMPLE_QUESTION_BANK.map(q => ({ ...q, images: q.images || [] })),
-          isInitialized: true,
-        });
-      } catch (fallbackError) {
-        console.error('Failed to load sample data:', fallbackError);
-        set({ isInitialized: true });
-      }
+      set({ isInitialized: true });
     }
   },
 

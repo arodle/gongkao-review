@@ -30,6 +30,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<any>(null);
+  const initAttemptedRef = useRef(false);
 
   const {
     nodes, isInitialized, practiceRecords,
@@ -173,6 +174,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
       return;
     }
 
+    initAttemptedRef.current = true;
     let mounted = true;
 
     (async () => {
@@ -325,6 +327,8 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
         console.log('[KnowledgeGraph] Graph initialization complete');
       } catch (error) {
         console.error('[KnowledgeGraph] Error during initialization:', error);
+        // 重置标志，允许重试
+        initAttemptedRef.current = false;
       }
     })();
 
