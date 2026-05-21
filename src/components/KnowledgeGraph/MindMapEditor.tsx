@@ -50,7 +50,6 @@ import {
   ChevronRight,
   ChevronLeft,
   ChevronRightIcon,
-  ChevronUp,
   Search,
   Pin,
   ZoomIn,
@@ -134,7 +133,7 @@ function NodeTreeItem({
         )}
         style={{ paddingLeft: `${level * 20 + 8}px` }}
         onClick={() => onSelect(node)}
-        onContextMenu={(e) => {
+        onContextMenu={(e: React.MouseEvent) => {
           e.preventDefault();
           onSelect(node);
         }}
@@ -271,7 +270,6 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
     name: '',
     content: '',
     annotation: '',
-    parent_id: '',
   });
   const [addForm, setAddForm] = useState({
     name: '',
@@ -279,41 +277,6 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
   });
   const [showSidebar, setShowSidebar] = useState(true);
   const [showOnlyWeak, setShowOnlyWeak] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(320);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isQuestionsExpanded, setIsQuestionsExpanded] = useState(false);
-  const [expandedQuestionId, setExpandedQuestionId] = useState<string | null>(null);
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
-      const newWidth = Math.max(200, Math.min(600, e.clientX));
-      setSidebarWidth(newWidth);
-    };
-
-    const handleMouseUp = () => {
-      setIsDragging(false);
-    };
-
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-  }, [isDragging]);
 
   useEffect(() => {
     if (nodes.length > 0 && expandedNodes.size === 0) {
@@ -391,97 +354,61 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
       name: node.name,
       content: node.content || '',
       annotation: node.annotation || '',
-      parent_id: node.parent_id || '',
     });
     setShowEditDialog(true);
   }, []);
 
   const handleAddChild = useCallback((parentId: string) => {
-    const parentNode = parentId ? nodes.find(n => n.id === parentId) : null;
-    const nextType: 'subject' | 'knowledge' | 'subknowledge' | 'angle' =
-      !parentNode ? 'knowledge' :
-      parentNode.node_type === 'subject' ? 'knowledge' :
-      parentNode.node_type === 'knowledge' ? 'subknowledge' :
-      parentNode.node_type === 'subknowledge' ? 'angle' :
-      'angle';
     setAddParentId(parentId);
     setAddForm({
       name: '',
-      type: nextType,
+      type: 'subknowledge',
     });
     setShowAddDialog(true);
-  }, [nodes]);
+  }, []);
 
-  const handleSaveEdit = useCallback(() => {
+  const handleSaveEdit = useCallback(async () => {
     if (!editingNode) return;
-    const newParentId = editForm.parent_id || null;
-    useAppStore.getState().updateNode({
-      id: editingNode.id,
-      name: editForm.name,
-      content: editForm.content || undefined,
-      annotation: editForm.annotation || undefined,
-      parent_id: newParentId,
-    });
 
-    const annotationChanged = editForm.annotation !== (editingNode.annotation || '');
-    console.log('[MindMapEditor] handleSaveEdit:', {
-      nodeId: editingNode.id,
-      nodeName: editingNode.name,
-      annotationChanged,
-      hasAnnotation: !!editForm.annotation,
-      annotationLen: editForm.annotation?.length || 0,
-    });
-    if (annotationChanged && editForm.annotation) {
-      try {
-        const parts: string[] = [];
-        let current: KnowledgeNodeRecord | undefined = nodes.find(n => n.id === editingNode.id);
-        while (current) {
-          const c = current;
-          parts.unshift(c.name);
-          current = c.parent_id ? nodes.find(n => n.id === c.parent_id) : undefined;
-        }
-        const fullPath = parts.join(' > ');
-        console.log('[MindMapEditor] syncing annotation to study_notes:', {
-          path: fullPath,
-          nodeId: editingNode.id,
-          title: `${editingNode.name} - 学习笔记`,
-        });
-        useAppStore.getState().addStudyNote({
-          id: `note_node_${editingNode.id}`,
-          user_id: 'default_user',
-          title: `${editingNode.name} - 学习笔记`,
-          content: editForm.annotation,
-          linked_node_id: editingNode.id,
-          linked_node_name: fullPath,
-          tags: [editingNode.node_type],
-          color_tag: 'default',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-      } catch (err) {
-        console.error('[MindMapEditor] failed to sync annotation to study_notes:', err);
-      }
+    try {
+      const { db } = await import('@/lib/db/database');
+      await db.knowledge_nodes.update(editingNode.id, {
+        name: editForm.name,
+        content: editForm.content || undefined,
+        annotation: editForm.annotation || undefined,
+        updated_at: new Date().toISOString(),
+      });
+
+      await useAppStore.getState().initialize();
+      setShowEditDialog(false);
+      setEditingNode(null);
+    } catch (error) {
+      console.error('Failed to update node:', error);
     }
-
-    setShowEditDialog(false);
-    setEditingNode(null);
-  }, [editingNode, editForm, nodes]);
+  }, [editingNode, editForm]);
 
   const handleSaveAdd = useCallback(async () => {
     if (!addForm.name.trim()) return;
 
     try {
+      const { db, CURRENT_USER_ID } = await import('@/lib/db/database');
       const parentNode = addParentId ? nodes.find(n => n.id === addParentId) : null;
-      const siblingCount = nodes.filter(n => n.parent_id === addParentId).length;
 
-      useAppStore.getState().addNode({
+      const newNode: KnowledgeNodeRecord = {
         id: `${addForm.type}_${Date.now()}`,
+        user_id: CURRENT_USER_ID,
         name: addForm.name,
         parent_id: addParentId,
         pos_x: parentNode ? parentNode.pos_x + 200 : 0,
-        pos_y: parentNode ? parentNode.pos_y + siblingCount * 60 : 0,
+        pos_y: parentNode ? parentNode.pos_y + 100 : 0,
+        ps_score: 50,
+        last_practiced_at: null,
+        color_tag: 'default',
         node_type: addForm.type,
-      });
+        updated_at: new Date().toISOString(),
+      };
+
+      await db.knowledge_nodes.add(newNode);
 
       await createSafetySnapshot('添加节点');
 
@@ -489,6 +416,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
         setExpandedNodes(prev => new Set([...prev, addParentId]));
       }
 
+      await useAppStore.getState().initialize();
       setShowAddDialog(false);
       setAddParentId(null);
     } catch (error) {
@@ -501,15 +429,26 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
 
     try {
       await createSafetySnapshot('删除节点');
-      useAppStore.getState().deleteNode(nodeId);
 
-      if (selectedNode?.id === nodeId) {
+      const { db } = await import('@/lib/db/database');
+      const toDelete = new Set<string>();
+
+      const collectChildren = (id: string) => {
+        toDelete.add(id);
+        nodes.filter(n => n.parent_id === id).forEach(n => collectChildren(n.id));
+      };
+      collectChildren(nodeId);
+
+      await db.knowledge_nodes.bulkDelete(Array.from(toDelete));
+      await useAppStore.getState().initialize();
+
+      if (selectedNode && toDelete.has(selectedNode.id)) {
         setSelectedNode(null);
       }
     } catch (error) {
       console.error('Failed to delete node:', error);
     }
-  }, [selectedNode, createSafetySnapshot]);
+  }, [nodes, selectedNode, createSafetySnapshot]);
 
   const handleCopyNode = useCallback(async (node: KnowledgeNodeRecord) => {
     setAddForm({
@@ -553,11 +492,10 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
         {showSidebar && (
           <motion.div
             initial={{ width: 0, opacity: 0 }}
-            animate={{ width: sidebarWidth, opacity: 1 }}
+            animate={{ width: 320, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="border-r bg-background flex flex-col overflow-hidden relative"
-            style={{ width: sidebarWidth }}
+            className="border-r bg-background flex flex-col"
           >
             <div className="p-3 border-b space-y-2">
               <div className="flex items-center gap-2">
@@ -595,7 +533,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
               </div>
             </div>
 
-            <ScrollArea className="h-0 flex-1 min-h-0">
+            <ScrollArea className="flex-1">
               <div className="p-2">
                 {rootNodes.map((node) => (
                   <NodeTreeItem
@@ -621,18 +559,8 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
         )}
       </AnimatePresence>
 
-      {showSidebar && (
-        <div
-          className={cn(
-            'w-1 cursor-col-resize hover:bg-primary/30 transition-colors flex-shrink-0',
-            isDragging && 'bg-primary'
-          )}
-          onMouseDown={handleMouseDown}
-        />
-      )}
-
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="p-3 border-b flex items-center justify-between shrink-0">
+      <div className="flex-1 flex flex-col">
+        <div className="p-3 border-b flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
@@ -651,7 +579,7 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
           </div>
         </div>
 
-        <ScrollArea className="h-0 flex-1 min-h-0">
+        <ScrollArea className="flex-1">
           <div className="p-6">
             {selectedNode ? (
               <div className="max-w-3xl mx-auto space-y-6">
@@ -678,14 +606,6 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
                         >
                           <FolderPlus className="h-4 w-4 mr-1" />
                           添加子节点
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteNode(selectedNode.id)}
-                        >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          删除
                         </Button>
                       </div>
                     </div>
@@ -738,143 +658,26 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
                 {nodeQuestions.length > 0 && (
                   <Card>
                     <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          <FileText className="h-5 w-5" />
-                          相关题目 ({nodeQuestions.length})
-                        </CardTitle>
-                        {nodeQuestions.length > 5 && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setIsQuestionsExpanded(!isQuestionsExpanded)}
-                            className="text-xs"
-                          >
-                            {isQuestionsExpanded ? (
-                              <>
-                                <ChevronUp className="h-3 w-3 mr-1" />
-                                收起
-                              </>
-                            ) : (
-                              <>
-                                <ChevronDown className="h-3 w-3 mr-1" />
-                                展开全部
-                              </>
-                            )}
-                          </Button>
-                        )}
-                      </div>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <FileText className="h-5 w-5" />
+                        相关题目 ({nodeQuestions.length})
+                      </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
-                        {(isQuestionsExpanded ? nodeQuestions : nodeQuestions.slice(0, 5)).map((q) => (
+                        {nodeQuestions.slice(0, 5).map((q) => (
                           <div
                             key={q.id}
-                            className={cn(
-                              "rounded-lg border transition-colors",
-                              expandedQuestionId === q.id 
-                                ? "bg-card border-primary" 
-                                : "bg-muted/50 hover:bg-muted cursor-pointer"
-                            )}
-                            onClick={() => setExpandedQuestionId(expandedQuestionId === q.id ? null : q.id)}
+                            className="p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
                           >
-                            <div className="p-3">
-                              <div className="flex items-start justify-between gap-2">
-                                <p className={cn(
-                                  "text-sm flex-1",
-                                  expandedQuestionId !== q.id && "line-clamp-2"
-                                )}>
-                                  {q.content}
-                                </p>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6 shrink-0"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setExpandedQuestionId(expandedQuestionId === q.id ? null : q.id);
-                                  }}
-                                >
-                                  {expandedQuestionId === q.id ? (
-                                    <ChevronUp className="h-4 w-4" />
-                                  ) : (
-                                    <ChevronDown className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </div>
-                              
-                              {expandedQuestionId === q.id && (
-                                <div className="mt-4 space-y-3">
-                                  {q.options && q.options.length > 0 && (
-                                     <div className="space-y-2">
-                                       <h4 className="text-sm font-medium text-muted-foreground">选项</h4>
-                                       {q.options.map((opt, idx) => (
-                                         <div 
-                                           key={idx}
-                                           className={cn(
-                                             "p-2 rounded-md text-sm",
-                                             q.correctAnswer === opt.label
-                                               ? "bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800" 
-                                               : "bg-muted/50"
-                                           )}
-                                         >
-                                           <span className="font-medium mr-2">{opt.label}.</span>
-                                           {opt.text}
-                                         </div>
-                                       ))}
-                                     </div>
-                                   )}
-                                  
-                                  {q.explanation && (
-                                    <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                                      <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">解析</h4>
-                                      <p className="text-sm text-blue-700 dark:text-blue-300">{q.explanation}</p>
-                                    </div>
-                                  )}
-                                  
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    {q.knowledgePath && (
-                                      <Badge variant="outline" className="text-xs">
-                                        {(q.knowledgePath || '').split('/').pop()}
-                                      </Badge>
-                                    )}
-                                    {q.source && (
-                                      <Badge variant="secondary" className="text-xs">
-                                        {q.source}
-                                      </Badge>
-                                    )}
-                                    {q.type && (
-                                      <Badge 
-                                        variant={q.type === 'real' ? 'default' : 'outline'}
-                                        className="text-xs"
-                                      >
-                                        {q.type === 'real' ? '真题' : '模拟题'}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                              
-                              {expandedQuestionId !== q.id && (
-                                <div className="mt-2 flex items-center gap-2 flex-wrap">
-                                  <Badge variant="outline" className="text-xs">
-                                    {(q.knowledgePath || '').split('/').pop()}
-                                  </Badge>
-                                  {q.options && q.options.length > 0 && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      {q.options.length} 个选项
-                                    </Badge>
-                                  )}
-                                </div>
-                              )}
+                            <p className="text-sm line-clamp-2">{q.content}</p>
+                            <div className="mt-2 flex items-center gap-2">
+                              <Badge variant="outline" className="text-xs">
+                                {(q.knowledgePath || '').split('/').pop()}
+                              </Badge>
                             </div>
                           </div>
                         ))}
-                        {!isQuestionsExpanded && nodeQuestions.length > 5 && (
-                          <div className="text-center text-sm text-muted-foreground py-2">
-                            还有 {nodeQuestions.length - 5} 道题目，点击"展开全部"查看更多
-                          </div>
-                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -908,22 +711,6 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">父节点（移动节点到其他位置）</label>
-              <select
-                value={editForm.parent_id}
-                onChange={(e) => setEditForm(prev => ({ ...prev, parent_id: e.target.value }))}
-                className="w-full border rounded px-2 py-1.5 text-sm"
-              >
-                <option value="">根节点（无父节点）</option>
-                {nodes
-                  .filter(n => n.id !== editingNode?.id)
-                  .filter(n => n.node_type !== 'angle')
-                  .map(n => (
-                    <option key={n.id} value={n.id}>{getNodePath(n.id)}</option>
-                  ))}
-              </select>
-            </div>
-            <div className="space-y-2">
               <label className="text-sm font-medium">内容说明</label>
               <Textarea
                 value={editForm.content}
@@ -942,27 +729,11 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
               />
             </div>
           </div>
-          <DialogFooter className="flex justify-between">
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => {
-                if (confirm('确定删除该节点？子节点也将被删除。')) {
-                  useAppStore.getState().deleteNode(editingNode!.id);
-                  setShowEditDialog(false);
-                  setEditingNode(null);
-                }
-              }}
-            >
-              <Trash2 className="h-4 w-4 mr-1" />
-              删除
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              取消
             </Button>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setShowEditDialog(false)}>
-                取消
-              </Button>
-              <Button onClick={handleSaveEdit}>保存</Button>
-            </div>
+            <Button onClick={handleSaveEdit}>保存</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

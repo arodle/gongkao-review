@@ -59,6 +59,7 @@
     "embla-carousel-react": "^8.6.0",
     "file-saver": "^2.0.5",
     "framer-motion": "^12.38.0",
+    "fs-extra": "^11.3.5",
     "input-otp": "^1.4.2",
     "jszip": "^3.10.1",
     "lucide-react": "^0.468.0",
@@ -81,6 +82,7 @@
     "zustand": "^5.0.13"
   },
   "devDependencies": {
+    "@cloudflare/next-on-pages": "^1.13.16",
     "@react-dev-inspector/babel-plugin": "^2.0.1",
     "@react-dev-inspector/middleware": "^2.0.1",
     "@tailwindcss/postcss": "^4",

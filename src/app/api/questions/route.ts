@@ -5,10 +5,7 @@ import type { QuestionBankItem, QuestionOption } from '@/types';
 export async function GET() {
   try {
     if (!process.env.DATABASE_URL) {
-      return NextResponse.json(
-        { error: 'DATABASE_URL is not configured' },
-        { status: 500 }
-      );
+      return NextResponse.json({ questions: [] });
     }
 
     const sql = neon(process.env.DATABASE_URL);
@@ -50,10 +47,7 @@ export async function GET() {
     return NextResponse.json({ questions });
   } catch (error) {
     console.error('Failed to fetch questions:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch questions' },
-      { status: 500 }
-    );
+    return NextResponse.json({ questions: [] });
   }
 }
 

@@ -170,7 +170,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
   ]);
 
   useEffect(() => {
-    if (!containerRef.current || !isInitialized || nodes.length === 0) {
+    if (!containerRef.current || !isInitialized || nodes.length === 0 || initAttemptedRef.current) {
       return;
     }
 
@@ -189,20 +189,16 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
           graphRef.current = null;
         }
 
-        // 清空容器内所有子元素，防止重复渲染
-        while (containerRef.current!.firstChild) {
-          containerRef.current!.removeChild(containerRef.current!.firstChild);
-        }
-
         const { Graph } = await import('@antv/g6');
 
         const nodeMap = new Map(nodes.map(n => [n.id, n]));
 
         // 创建图实例
+        const container = containerRef.current!;
         const graph = new Graph({
-          container: containerRef.current!,
-          width: containerRef.current!.clientWidth,
-          height: containerRef.current!.clientHeight,
+          container,
+          width: container.clientWidth,
+          height: container.clientHeight,
           data: graphData,
           node: {
             style: {
@@ -250,7 +246,7 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
           padding: 60,
         });
 
-        // 左键点击：折叠/展开
+        // 节点点击事件
         graph.on('node:click', (evt: any) => {
           const nodeId = evt?.target?.id;
           if (!nodeId) return;
@@ -258,60 +254,49 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
           const node = nodeMap.get(nodeId);
           if (!node) return;
 
-          // 点击高亮反馈
-          graph.setElementState(nodeId, ['selected']);
-          setTimeout(() => {
-            graph.setElementState(nodeId, []);
-          }, 300);
-
-          // ===== 折叠逻辑 =====
-          const getAllChildren = (
-            parentId: string,
-            result: string[] = []
-          ) => {
-            const childEdges = graphData.edges.filter(
-              e => e.source === parentId
-            );
-
-            childEdges.forEach(e => {
-              result.push(e.target);
-              getAllChildren(e.target, result);
-            });
-
-            return result;
-          };
-
-          const allChildIds = getAllChildren(nodeId);
-
-          if (!allChildIds.length) return;
-
-          const hidden = graph.getElementVisibility(allChildIds[0]);
-          const nextState = hidden === 'hidden' ? 'visible' : 'hidden';
-
-          allChildIds.forEach(id => {
-            graph.setElementVisibility(id, nextState);
-          });
-
-          graphData.edges.forEach(e => {
-            if (allChildIds.includes(e.target)) {
-              graph.setElementVisibility(e.id, nextState);
-            }
-          });
-        });
-
-        // 右键点击：显示详情
-        graph.on('node:contextmenu', (evt: any) => {
-          // 阻止默认右键菜单
-          evt.preventDefault?.();
-
-          const nodeId = evt?.target?.id;
-          if (!nodeId) return;
-
-          const node = nodeMap.get(nodeId);
-          if (!node) return;
-
+          // 原来的右侧详情
           setSelectedNode(node);
           onNodeSelect?.(node);
+
+          // ===== 折叠逻辑 =====
+          const childEdges = graphData.edges.filter(
+            e => e.source === nodeId
+          );
+
+          const childIds = childEdges.map(
+            e => e.target
+          );
+
+          if (!childIds.length) return;
+
+          const hidden = graph.getElementVisibility(
+            childIds[0]
+          );
+
+          childIds.forEach(id => {
+            graph.setElementVisibility(
+              id,
+              hidden === 'hidden'
+                ? 'visible'
+                : 'hidden'
+            );
+
+            graphData.edges.forEach(e => {
+              if (
+                e.source === nodeId &&
+                e.target === id
+              ) {
+                graph.setElementVisibility(
+                  e.id,
+                  hidden === 'hidden'
+                    ? 'visible'
+                    : 'hidden'
+                );
+              }
+            });
+          });
+
+          graph.fitView();
         });
 
         // 渲染图

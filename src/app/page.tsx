@@ -228,7 +228,7 @@ function AppContent() {
             <h1 className="text-base font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               智能公考学习平台
             </h1>
-            <p className="text-[11px] text-muted-foreground">PS 掌握度 · 智能靶向</p>
+            <p className="text-xs text-muted-foreground">PS 掌握度 · 智能靶向</p>
           </div>
         </div>
 
@@ -250,7 +250,7 @@ function AppContent() {
                 )}
               >
                 <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{tab.label}</span>
+                <span>{tab.label}</span>
               </button>
             );
           })}
@@ -270,12 +270,12 @@ function AppContent() {
                   {isOnline ? (
                     <>
                       <Wifi className="h-3 w-3" />
-                      <span className="hidden sm:inline">在线</span>
+                      <span>在线</span>
                     </>
                   ) : (
                     <>
                       <WifiOff className="h-3 w-3" />
-                      <span className="hidden sm:inline">离线可用</span>
+                      <span>离线可用</span>
                     </>
                   )}
                 </div>
@@ -321,7 +321,7 @@ function AppContent() {
             {syncStatus === 'success' && <CheckCircle2 className="h-3 w-3" />}
             {syncStatus === 'error' && <CloudOff className="h-3 w-3" />}
             {syncStatus === 'idle' && (isOnline ? <Cloud className="h-3 w-3" /> : <CloudOff className="h-3 w-3" />)}
-            <span className="hidden sm:inline">
+            <span>
               {syncStatus === 'syncing' && '同步中'}
               {syncStatus === 'success' && '已同步'}
               {syncStatus === 'error' && '同步失败'}

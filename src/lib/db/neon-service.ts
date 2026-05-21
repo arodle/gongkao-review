@@ -281,7 +281,7 @@ export async function getDataStatus(): Promise<{ nodeCount: number; practiceCoun
     sql`SELECT COUNT(*) as count FROM practice_records` as any,
     sql`SELECT COUNT(*) as count FROM ps_history` as any,
     sql`SELECT COUNT(*) as count FROM question_bank` as any,
-  ]);
+  ]).catch(() => [[{ count: '0' }], [{ count: '0' }], [{ count: '0' }], [{ count: '0' }]]);
   return {
     nodeCount: parseInt(nodeResult[0]?.count || '0'),
     practiceCount: parseInt(practiceResult[0]?.count || '0'),
