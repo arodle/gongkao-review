@@ -170,11 +170,10 @@ export function KnowledgeGraph({ onNodeSelect, onTargetedPractice }: {
   ]);
 
   useEffect(() => {
-    if (!containerRef.current || !isInitialized || nodes.length === 0 || initAttemptedRef.current) {
+    if (!containerRef.current || !isInitialized || nodes.length === 0) {
       return;
     }
 
-    initAttemptedRef.current = true;
     let mounted = true;
 
     (async () => {
