@@ -368,10 +368,14 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
     setShowAddDialog(true);
   }, []);
 
-  const handleSaveEdit = useCallback(async () => {
-    if (!editingNode) return;
+  const handleSaveEdit = async () => {
+    if (!editingNode) {
+      console.log('没有正在编辑的节点');
+      return;
+    }
 
     try {
+      console.log('开始保存节点:', editingNode.id, editForm);
       const { db } = await import('@/lib/db/database');
       await db.knowledge_nodes.update(editingNode.id, {
         name: editForm.name,
@@ -380,13 +384,17 @@ export function MindMapEditor({ className }: MindMapEditorProps) {
         updated_at: new Date().toISOString(),
       });
 
+      console.log('数据库更新成功');
       await useAppStore.getState().initialize();
+      console.log('数据重新加载成功');
       setShowEditDialog(false);
       setEditingNode(null);
+      alert('保存成功！');
     } catch (error) {
-      console.error('Failed to update node:', error);
+      console.error('保存失败:', error);
+      alert('保存失败，请检查控制台');
     }
-  }, [editingNode, editForm.name, editForm.content, editForm.annotation]);
+  };
 
   const handleSaveAdd = useCallback(async () => {
     if (!addForm.name.trim()) return;
